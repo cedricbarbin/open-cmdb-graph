@@ -315,5 +315,6 @@ Further ideas that still fit this schema without restructuring it:
 TODO/Possible roadmap:
 - Add a logo
 - Add new data types (see above)
-- Add export to CSV capability
+- Add global export to CSV/JSON capability
+- Add import from CSV/JSON capability & downloadable templates
 - Embed the launch of neo4j backend (or document how to container it)
