@@ -5,7 +5,13 @@
       "Bash(xargs -I{} sh -c 'echo ==={}===; cat {}')",
       "Bash(xargs cat)",
       "Bash(npm run *)",
-      "Bash(python3 -)"
+      "Bash(python3 -)",
+      "Bash(curl -sS http://localhost:5173/src/main.jsx)",
+      "Bash(curl -sS -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/src/main.jsx)",
+      "Bash(curl -sS http://localhost:5175/src/main.jsx)",
+      "Bash(curl -sS http://localhost:5175/)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(jobs -l)"
     ]
   }
 }

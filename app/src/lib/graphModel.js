@@ -36,7 +36,7 @@ export function styleForLabels(labels = []) {
   return DEFAULT_STYLE;
 }
 
-function captionFor(labels, properties) {
+export function captionFor(labels, properties) {
   const style = styleForLabels(labels);
   for (const field of style.captionFields) {
     if (properties[field]) return String(properties[field]);
@@ -44,7 +44,12 @@ function captionFor(labels, properties) {
   return properties.id ? String(properties.id) : labels.join(':');
 }
 
-function toPlainProperties(properties) {
+/** Best-effort display caption for a raw neo4j-driver Node object. */
+export function captionForNode(node) {
+  return captionFor(node.labels, toPlainProperties(node.properties));
+}
+
+export function toPlainProperties(properties) {
   const out = {};
   for (const [key, value] of Object.entries(properties)) {
     if (neo4j.isInt(value)) {
@@ -136,4 +141,15 @@ function isNeo4jPath(value) {
 
 export function labelPalette() {
   return LABEL_STYLE;
+}
+
+/** Merges a newly-fetched { nodes, relationships } set into an existing one,
+ * deduplicating by id - used to incrementally expand the dependency graph
+ * modal as the user clicks further nodes. */
+export function mergeGraphs(base, addition) {
+  const nodes = new Map(base.nodes.map((n) => [n.id, n]));
+  const relationships = new Map(base.relationships.map((r) => [r.id, r]));
+  for (const n of addition.nodes) nodes.set(n.id, n);
+  for (const r of addition.relationships) relationships.set(r.id, r);
+  return { nodes: Array.from(nodes.values()), relationships: Array.from(relationships.values()) };
 }

@@ -220,7 +220,14 @@ browser tab's memory; for anything beyond local/demo use, put a thin API
 layer in front (see note in `app/src/lib/neo4j.js`) instead of shipping
 credentials to the client.
 
-### What you can do in the app
+The app has two areas, both listed in the left sidebar once you're signed in:
+**Graph Explorer** (free-form querying/visualization) and one **business
+screen per node type** (list/search/create/edit/export, the "line of
+business" view of the same data). Routing is client-side only (`HashRouter`
+— URLs look like `#/type/application`), so it works from a static file
+server with no rewrite rules.
+
+### Graph Explorer
 
 - **Query bar**: run any of the preset Cypher queries (topology views,
   dependency graphs, open incidents, ticket boards…) or type your own
@@ -243,6 +250,43 @@ All writes go straight to the database via parameterized Cypher — labels and
 relationship types can't be parameterized in Cypher, so `src/lib/neo4j.js`
 validates them against an identifier allow-list before interpolating them
 into the query string (prevents Cypher injection through that path).
+
+### Business screens
+
+One sidebar entry per node type (Datacenters, Physical Servers, Applications,
+Incidents, Tickets, Change Requests, Vendors, …), grouped by category. Every
+entry is driven by the same two generic screens, configured from a single
+registry (`app/src/lib/nodeTypes.js`) that lists each type's columns, form
+fields (with the right input: text/number/date/datetime/select), and
+relationships (direction, cardinality, which labels to search) - adding a
+20th business screen means adding one entry to that file, not writing a new
+screen.
+
+- **List + search**: a table of that type's nodes (columns from the
+  registry), with a client-side filter box across all visible columns.
+- **Export CSV**: exports the currently filtered rows using the same column
+  set as the table.
+- **Create / Edit** (admin only, same gating as the Graph Explorer):
+  a form built from the registry's field list, plus one relationship picker
+  per configured relationship. Relationship pickers use **autocomplete** -
+  type 2+ characters and it searches the `cmdb_fulltext` index (optionally
+  restricted to the relevant labels, e.g. a Physical Server's "Location"
+  picker only searches `Location` nodes; an Incident's "Impacts" picker
+  searches everything, since incidents can impact servers, containers,
+  applications, or data). Single-valued relationships (e.g. "assigned to")
+  show one picker; multi-valued ones (e.g. "depends on") show existing picks
+  as removable chips plus a picker to add more. Saving diffs the selection
+  against what was there before and only creates/deletes the relationships
+  that actually changed.
+- **Delete** (admin only): detaches and deletes the node, with a confirm
+  prompt.
+- **Detail** (every row, both profiles): opens a modal with that node's
+  dependency graph, starting from its 1-hop neighborhood. It's exploratory,
+  not editable - **click any node in the modal to expand its own
+  connections**, merged into what's already shown, so you can walk the graph
+  outward (e.g. from a Ticket → the Incident it tracks → the Application it
+  impacts → the Team that owns it) without leaving the modal or re-running a
+  query by hand.
 
 ## 5. Extending the model further
 

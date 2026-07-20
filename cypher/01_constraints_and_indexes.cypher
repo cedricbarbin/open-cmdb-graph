@@ -61,7 +61,12 @@ CREATE INDEX data_name_idx            IF NOT EXISTS FOR (n:Data)        ON (n.na
 CREATE INDEX data_type_idx            IF NOT EXISTS FOR (n:Data)        ON (n.type);
 CREATE INDEX datacategory_sensitivity_idx IF NOT EXISTS FOR (n:DataCategory) ON (n.sensitivity);
 
-// Full text index used by the app's search box
-CREATE FULLTEXT INDEX cmdb_fulltext IF NOT EXISTS
+// Full text index used by the app's search box AND by the business screens'
+// relationship-picker autocomplete (see app/src/lib/nodeTypes.js). Dropped
+// and recreated on every run so re-running this script after the property
+// list changes actually picks up the change (ALTER isn't supported for
+// fulltext indexes) - safe to do any time, it just gets rebuilt.
+DROP INDEX cmdb_fulltext IF EXISTS;
+CREATE FULLTEXT INDEX cmdb_fulltext
 FOR (n:Location|Server|Container|Application|Team|Person|Incident|Ticket|ChangeRequest|Vendor|Contract|Environment|SLA|NetworkInterface|IPAddress|Data|DataCategory)
-ON EACH [n.name, n.hostname, n.title, n.id, n.address];
+ON EACH [n.name, n.hostname, n.title, n.id, n.address, n.contractNumber];
