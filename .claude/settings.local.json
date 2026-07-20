@@ -4,7 +4,8 @@
       "Bash(npm install *)",
       "Bash(xargs -I{} sh -c 'echo ==={}===; cat {}')",
       "Bash(xargs cat)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(python3 -)"
     ]
   }
 }

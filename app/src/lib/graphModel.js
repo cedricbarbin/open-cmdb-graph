@@ -14,7 +14,14 @@ export const LABEL_STYLE = {
   Team:        { color: '#8D6E63', captionFields: ['name'] },
   Person:      { color: '#66BB6A', captionFields: ['name'] },
   Incident:    { color: '#EF5350', captionFields: ['title'] },
-  Ticket:      { color: '#EC407A', captionFields: ['title'] }
+  Ticket:      { color: '#EC407A', captionFields: ['title'] },
+  ChangeRequest:     { color: '#AB47BC', captionFields: ['title'] },
+  NetworkInterface:  { color: '#78909C', captionFields: ['name'] },
+  IPAddress:         { color: '#546E7A', captionFields: ['address'] },
+  Vendor:            { color: '#8D6E63', captionFields: ['name'] },
+  Contract:          { color: '#A1887F', captionFields: ['contractNumber', 'name'] },
+  Environment:       { color: '#26C6DA', captionFields: ['name'] },
+  SLA:               { color: '#D4E157', captionFields: ['name'] }
 };
 
 const DEFAULT_STYLE = { color: '#90A4AE', captionFields: ['name', 'title', 'hostname', 'id'] };

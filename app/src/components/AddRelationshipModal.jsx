@@ -5,7 +5,9 @@ import PropertyEditor, { rowsToProperties } from './PropertyEditor.jsx';
 const CMDB_REL_TYPES = [
   'LOCATED_IN', 'HOSTED_ON', 'RUNS_ON', 'DEPLOYED_ON', 'DEPENDS_ON',
   'OWNS', 'MANAGES', 'MEMBER_OF', 'IMPACTS', 'REPORTED_BY',
-  'TRACKS', 'CONCERNS', 'ASSIGNED_TO', 'OPENED_BY'
+  'TRACKS', 'CONCERNS', 'ASSIGNED_TO', 'OPENED_BY',
+  'HAS_INTERFACE', 'HAS_IP', 'SUPPLIED_BY', 'COVERED_BY', 'PROVIDED_BY',
+  'REQUESTED_BY', 'APPROVED_BY', 'RELATES_TO', 'IN_ENVIRONMENT', 'HAS_SLA'
 ];
 
 export default function AddRelationshipModal({ nodes = [], knownTypes = [], onClose, onCreate, busy }) {

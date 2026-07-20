@@ -123,11 +123,100 @@ RETURN i.id AS incident, i.title AS title, i.severity AS severity, i.status AS s
 ORDER BY i.createdAt DESC;
 
 // ---------------------------------------------------------------------
-// E. WRITE OPERATIONS (create / update / delete)
+// E. NETWORK / IPAM
+// ---------------------------------------------------------------------
+
+// E1. Full NIC + IP inventory for a physical host
+MATCH (s:Server:Physical {id: 'srv-phy-001'})-[:HAS_INTERFACE]->(nic:NetworkInterface)-[:HAS_IP]->(ip:IPAddress)
+RETURN s.hostname AS host, nic.name AS interface, nic.type AS interfaceType, ip.address AS ipAddress;
+
+// E2. Reverse lookup: which server/interface owns a given IP address
+MATCH (ip:IPAddress {address: '10.20.1.111'})<-[:HAS_IP]-(nic:NetworkInterface)<-[:HAS_INTERFACE]-(s:Server)
+RETURN s.hostname AS server, nic.name AS interface, ip.address AS ipAddress;
+
+// E3. All management interfaces (iDRAC/iLO) across the estate, for a firewall/VLAN audit
+MATCH (s:Server)-[:HAS_INTERFACE]->(nic:NetworkInterface {type: 'management'})-[:HAS_IP]->(ip:IPAddress)
+RETURN s.hostname AS server, nic.name AS interface, ip.address AS ipAddress
+ORDER BY server;
+
+// ---------------------------------------------------------------------
+// F. VENDORS / CONTRACTS (asset & warranty tracking)
+// ---------------------------------------------------------------------
+
+// F1. Which vendor supplied and covers each physical server
+MATCH (s:Server:Physical)-[:SUPPLIED_BY]->(v:Vendor)
+OPTIONAL MATCH (s)-[:COVERED_BY]->(c:Contract)
+RETURN s.hostname AS server, s.model AS model, v.name AS vendor,
+       c.contractNumber AS contract, c.endDate AS contractEnd
+ORDER BY contractEnd;
+
+// F2. Contracts that have already expired or expire within 90 days (renewal risk)
+MATCH (c:Contract)<-[:COVERED_BY]-(s:Server)
+WHERE c.endDate <= date() + duration('P90D')
+RETURN c.contractNumber AS contract, c.endDate AS endDate,
+       CASE WHEN c.endDate < date() THEN 'EXPIRED' ELSE 'EXPIRING_SOON' END AS status,
+       collect(s.hostname) AS coveredServers
+ORDER BY endDate;
+
+// F3. Total contract spend per vendor
+MATCH (v:Vendor)<-[:PROVIDED_BY]-(c:Contract)
+RETURN v.name AS vendor, count(c) AS contracts, sum(c.cost) AS totalCost, head(collect(c.currency)) AS currency;
+
+// ---------------------------------------------------------------------
+// G. CHANGE MANAGEMENT
+// ---------------------------------------------------------------------
+
+// G1. Upcoming/scheduled changes (a simple change calendar)
+MATCH (c:ChangeRequest)
+WHERE c.status IN ['approved', 'scheduled']
+OPTIONAL MATCH (c)-[:CONCERNS]->(res)
+RETURN c.id AS change, c.title AS title, c.riskLevel AS risk,
+       c.scheduledStart AS start, c.scheduledEnd AS end, res.name AS concerns
+ORDER BY start;
+
+// G2. High-risk changes still in draft (need review before they can be scheduled)
+MATCH (c:ChangeRequest {status: 'draft'})
+WHERE c.riskLevel IN ['high', 'medium']
+OPTIONAL MATCH (c)-[:REQUESTED_BY]->(requester:Person)
+RETURN c.id AS change, c.title AS title, c.riskLevel AS risk, requester.name AS requestedBy;
+
+// G3. Full approval chain for a change request
+MATCH (c:ChangeRequest {id: 'chg-2026-0001'})
+OPTIONAL MATCH (c)-[:REQUESTED_BY]->(requester:Person)
+OPTIONAL MATCH (c)-[:APPROVED_BY]->(approver:Person)
+OPTIONAL MATCH (c)-[:CONCERNS]->(res)
+OPTIONAL MATCH (t:Ticket)-[:RELATES_TO]->(c)
+RETURN c.title AS change, requester.name AS requestedBy, approver.name AS approvedBy,
+       res.name AS concerns, collect(t.id) AS linkedTickets;
+
+// ---------------------------------------------------------------------
+// H. ENVIRONMENTS / SLAs
+// ---------------------------------------------------------------------
+
+// H1. Everything running in staging (first-class Environment node, not a property filter)
+MATCH (e:Environment {name: 'staging'})<-[:IN_ENVIRONMENT]-(res)
+OPTIONAL MATCH (res)<-[:RUNS_ON]-(ctr:Container)
+RETURN e.name AS environment, res, collect(ctr) AS containers;
+
+// H2. SLA compliance view: applications, their SLA target, and any open incidents against them
+MATCH (a:Application)-[:HAS_SLA]->(sla:SLA)
+OPTIONAL MATCH (a)<-[:IMPACTS]-(i:Incident) WHERE i.status IN ['open', 'investigating']
+RETURN a.name AS application, sla.name AS slaTier, sla.uptimeTargetPct AS uptimeTarget,
+       count(i) AS openIncidents
+ORDER BY sla.uptimeTargetPct DESC;
+
+// H3. Move an application (and everything it depends on operationally) into a new environment
+// - illustrates that Environment membership is just a relationship to re-target
+MATCH (a:Application {id: 'app-crm'})
+MATCH (e:Environment {name: 'staging'})
+MERGE (a)-[:IN_ENVIRONMENT]->(e);
+
+// ---------------------------------------------------------------------
+// I. WRITE OPERATIONS (create / update / delete)
 // These mirror what the web app does through its Add/Edit/Delete forms.
 // ---------------------------------------------------------------------
 
-// E1. Create a new physical server
+// I1. Create a new physical server
 CREATE (s:Server:Physical {
   id: 'srv-phy-005',
   hostname: 'hv-par1-03',
@@ -145,11 +234,11 @@ CREATE (s:Server:Physical {
 })
 RETURN s;
 
-// E2. Attach it to a location
+// I2. Attach it to a location
 MATCH (s:Server {id: 'srv-phy-005'}), (l:Location {id: 'loc-dc-par1'})
 MERGE (s)-[:LOCATED_IN]->(l);
 
-// E3. Create a new Virtual server hosted on it, in one statement
+// I3. Create a new Virtual server hosted on it, in one statement
 MATCH (host:Server:Physical {id: 'srv-phy-005'})
 CREATE (vm:Server:Virtual {
   id: 'vm-web-03', hostname: 'web-03.prod.local', ipAddress: '10.10.2.13',
@@ -158,7 +247,7 @@ CREATE (vm:Server:Virtual {
 })-[:HOSTED_ON]->(host)
 RETURN vm;
 
-// E4. Generic "add node with arbitrary label + properties" (what the app's
+// I4. Generic "add node with arbitrary label + properties" (what the app's
 // Add Node form runs; label & props come from user input, id always required)
 // :params { label: 'Application', props: { id: 'app-newsvc', name: 'New Service', criticality: 'low' } }
 CALL apoc.merge.node([$label], {id: $props.id}, $props, $props) YIELD node
@@ -167,45 +256,45 @@ RETURN node;
 // avoids APOC by building the label into the query string safely (see
 // app/src/lib/neo4j.js) since the target Neo4j instance may not have it.
 
-// E5. Generic "add relationship between two existing nodes by id"
+// I5. Generic "add relationship between two existing nodes by id"
 MATCH (a {id: $fromId}), (b {id: $toId})
 CALL apoc.merge.relationship(a, $relType, {}, $props, b) YIELD rel
 RETURN rel;
-// Same remark as E4 - see app/src/lib/neo4j.js for the APOC-free equivalent.
+// Same remark as I4 - see app/src/lib/neo4j.js for the APOC-free equivalent.
 
-// E6. Update a node's properties (partial update / PATCH semantics)
+// I6. Update a node's properties (partial update / PATCH semantics)
 MATCH (a:Application {id: 'app-orderapi'})
 SET a.version = '2.5.0', a.criticality = 'critical', a.updatedAt = datetime()
 RETURN a;
 
-// E7. Update a relationship's properties
+// I7. Update a relationship's properties
 MATCH (:Application {id: 'app-orderapi'})-[r:DEPENDS_ON]->(:Application {id: 'app-authsvc'})
 SET r.type = 'synchronous', r.timeoutMs = 2000
 RETURN r;
 
-// E8. Close a ticket and resolve its linked incident
+// I8. Close a ticket and resolve its linked incident
 MATCH (t:Ticket {id: 'tkt-1004'})
 SET t.status = 'resolved', t.updatedAt = datetime()
 WITH t
 MATCH (t)-[:TRACKS]->(i:Incident)
 SET i.status = 'resolved', i.resolvedAt = datetime();
 
-// E9. Move a VM to a different physical host (replace a relationship)
+// I9. Move a VM to a different physical host (replace a relationship)
 MATCH (vm:Server:Virtual {id: 'vm-app-02'})-[r:HOSTED_ON]->(:Server:Physical)
 DELETE r
 WITH vm
 MATCH (newHost:Server:Physical {id: 'srv-phy-001'})
 MERGE (vm)-[:HOSTED_ON]->(newHost);
 
-// E10. Decommission a server: detach then delete (keeps history-free graph tidy)
+// I10. Decommission a server: detach then delete (keeps history-free graph tidy)
 MATCH (s:Server {id: 'srv-phy-005'})
 DETACH DELETE s;
 
-// E11. Delete a single relationship between two known nodes
+// I11. Delete a single relationship between two known nodes
 MATCH (:Application {id: 'app-crm'})-[r:DEPENDS_ON]->(:Application {id: 'app-authsvc'})
 DELETE r;
 
-// E12. Create an incident + link it to affected resources + reporter in one go
+// I12. Create an incident + link it to affected resources + reporter in one go
 MATCH (reporter:Person {id: 'p-eve'})
 MATCH (target:Server {id: 'srv-phy-004'})
 CREATE (i:Incident {
@@ -216,7 +305,7 @@ CREATE (i:Incident {
 CREATE (i)-[:REPORTED_BY]->(reporter)
 RETURN i;
 
-// E13. Open a ticket against that incident and assign it
+// I13. Open a ticket against that incident and assign it
 MATCH (i:Incident {id: 'inc-2026-0005'}), (assignee:Person {id: 'p-alice'}), (opener:Person {id: 'p-eve'})
 CREATE (t:Ticket {
   id: 'tkt-1006', title: 'Fix nightly backup failures', description: 'See inc-2026-0005',

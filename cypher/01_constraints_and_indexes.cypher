@@ -18,6 +18,15 @@ CREATE CONSTRAINT team_id_unique          IF NOT EXISTS FOR (n:Team)        REQU
 CREATE CONSTRAINT person_id_unique        IF NOT EXISTS FOR (n:Person)      REQUIRE n.id IS UNIQUE;
 CREATE CONSTRAINT incident_id_unique      IF NOT EXISTS FOR (n:Incident)    REQUIRE n.id IS UNIQUE;
 CREATE CONSTRAINT ticket_id_unique        IF NOT EXISTS FOR (n:Ticket)      REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT changerequest_id_unique IF NOT EXISTS FOR (n:ChangeRequest) REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT netiface_id_unique      IF NOT EXISTS FOR (n:NetworkInterface) REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT ipaddress_id_unique     IF NOT EXISTS FOR (n:IPAddress)   REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT ipaddress_addr_unique   IF NOT EXISTS FOR (n:IPAddress)   REQUIRE n.address IS UNIQUE;
+CREATE CONSTRAINT vendor_id_unique        IF NOT EXISTS FOR (n:Vendor)      REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT contract_id_unique      IF NOT EXISTS FOR (n:Contract)    REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT environment_id_unique   IF NOT EXISTS FOR (n:Environment) REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT environment_name_unique IF NOT EXISTS FOR (n:Environment) REQUIRE n.name IS UNIQUE;
+CREATE CONSTRAINT sla_id_unique           IF NOT EXISTS FOR (n:SLA)         REQUIRE n.id IS UNIQUE;
 
 // Person email should be unique too
 CREATE CONSTRAINT person_email_unique     IF NOT EXISTS FOR (n:Person)      REQUIRE n.email IS UNIQUE;
@@ -42,8 +51,11 @@ CREATE INDEX incident_severity_idx    IF NOT EXISTS FOR (n:Incident)    ON (n.se
 CREATE INDEX ticket_status_idx        IF NOT EXISTS FOR (n:Ticket)      ON (n.status);
 CREATE INDEX ticket_priority_idx      IF NOT EXISTS FOR (n:Ticket)      ON (n.priority);
 CREATE INDEX location_name_idx        IF NOT EXISTS FOR (n:Location)    ON (n.name);
+CREATE INDEX changerequest_status_idx IF NOT EXISTS FOR (n:ChangeRequest) ON (n.status);
+CREATE INDEX contract_end_idx         IF NOT EXISTS FOR (n:Contract)    ON (n.endDate);
+CREATE INDEX ipaddress_address_idx    IF NOT EXISTS FOR (n:IPAddress)   ON (n.address);
 
 // Full text index used by the app's search box
 CREATE FULLTEXT INDEX cmdb_fulltext IF NOT EXISTS
-FOR (n:Location|Server|Container|Application|Team|Person|Incident|Ticket)
-ON EACH [n.name, n.hostname, n.title, n.id];
+FOR (n:Location|Server|Container|Application|Team|Person|Incident|Ticket|ChangeRequest|Vendor|Contract|Environment|SLA|NetworkInterface|IPAddress)
+ON EACH [n.name, n.hostname, n.title, n.id, n.address];

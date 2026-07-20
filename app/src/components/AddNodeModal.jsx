@@ -4,7 +4,9 @@ import PropertyEditor, { rowsToProperties } from './PropertyEditor.jsx';
 
 const CMDB_LABELS = [
   'Datacenter', 'CloudRegion', 'Physical', 'Virtual', 'Container',
-  'Application', 'Team', 'Person', 'Incident', 'Ticket'
+  'Application', 'Team', 'Person', 'Incident', 'Ticket',
+  'ChangeRequest', 'NetworkInterface', 'IPAddress', 'Vendor', 'Contract',
+  'Environment', 'SLA'
 ];
 
 export default function AddNodeModal({ knownLabels = [], onClose, onCreate, busy }) {

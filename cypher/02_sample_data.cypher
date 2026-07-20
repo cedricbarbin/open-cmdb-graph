@@ -119,6 +119,89 @@ UNWIND [
 MERGE (t:Ticket {id: row.id})
 SET t += row;
 
+// ---------------------------------------------------------------------
+// 7. VENDORS & CONTRACTS (asset / warranty tracking for physical servers)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'vnd-dell', name:'Dell Technologies',          supportPhone:'+33 1 55 94 71 00', supportEmail:'support.fr@dell.com', website:'https://www.dell.com'},
+  {id:'vnd-hpe',  name:'Hewlett Packard Enterprise',  supportPhone:'+33 1 41 91 60 00', supportEmail:'support.fr@hpe.com',  website:'https://www.hpe.com'}
+] AS row
+MERGE (v:Vendor {id: row.id})
+SET v += row;
+
+UNWIND [
+  {id:'ctc-dell-maint-01', contractNumber:'DELL-FR-2023-0456', type:'maintenance', startDate:date('2023-02-15'), endDate:date('2027-02-15'), cost:8400, currency:'EUR'},
+  {id:'ctc-hpe-maint-01',  contractNumber:'HPE-FR-2021-1187',  type:'maintenance', startDate:date('2021-06-01'), endDate:date('2026-06-01'), cost:6200, currency:'EUR'}
+] AS row
+MERGE (c:Contract {id: row.id})
+SET c += row;
+
+// ---------------------------------------------------------------------
+// 8. NETWORK INTERFACES & IP ADDRESSES (physical hosts: data + mgmt NIC)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'nic-srv-phy-001-eth0', name:'eth0',  type:'data',       speedMbps:10000, mac:'3C:EC:EF:11:22:01'},
+  {id:'nic-srv-phy-001-mgmt', name:'iDRAC', type:'management', speedMbps:1000,  mac:'3C:EC:EF:11:22:0F'},
+  {id:'nic-srv-phy-002-eth0', name:'eth0',  type:'data',       speedMbps:10000, mac:'3C:EC:EF:11:22:02'},
+  {id:'nic-srv-phy-002-mgmt', name:'iDRAC', type:'management', speedMbps:1000,  mac:'3C:EC:EF:11:22:1F'},
+  {id:'nic-srv-phy-003-eth0', name:'eth0',  type:'data',       speedMbps:10000, mac:'B8:AE:ED:33:44:01'},
+  {id:'nic-srv-phy-003-mgmt', name:'iLO',   type:'management', speedMbps:1000,  mac:'B8:AE:ED:33:44:0F'},
+  {id:'nic-srv-phy-004-eth0', name:'eth0',  type:'data',       speedMbps:1000,  mac:'B8:AE:ED:33:44:02'},
+  {id:'nic-srv-phy-004-mgmt', name:'iLO',   type:'management', speedMbps:1000,  mac:'B8:AE:ED:33:44:2F'}
+] AS row
+MERGE (n:NetworkInterface {id: row.id})
+SET n += row;
+
+UNWIND [
+  {id:'ip-10-10-1-11',  address:'10.10.1.11',  version:'v4', type:'private', allocation:'static'},
+  {id:'ip-10-10-1-101', address:'10.10.1.101', version:'v4', type:'private', allocation:'static'},
+  {id:'ip-10-10-1-12',  address:'10.10.1.12',  version:'v4', type:'private', allocation:'static'},
+  {id:'ip-10-10-1-102', address:'10.10.1.102', version:'v4', type:'private', allocation:'static'},
+  {id:'ip-10-20-1-11',  address:'10.20.1.11',  version:'v4', type:'private', allocation:'static'},
+  {id:'ip-10-20-1-111', address:'10.20.1.111', version:'v4', type:'private', allocation:'static'},
+  {id:'ip-10-20-1-20',  address:'10.20.1.20',  version:'v4', type:'private', allocation:'static'},
+  {id:'ip-10-20-1-120', address:'10.20.1.120', version:'v4', type:'private', allocation:'static'}
+] AS row
+MERGE (ip:IPAddress {id: row.id})
+SET ip += row;
+
+// ---------------------------------------------------------------------
+// 9. CHANGE REQUESTS (change management, alongside Ticket)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'chg-2026-0001', title:'Add datastore capacity on hv-lyon1-01', description:'Extend the NFS-backed datastore before it fills up (see inc-2026-0003)', status:'approved',  riskLevel:'medium', scheduledStart:datetime('2026-07-22T20:00:00Z'), scheduledEnd:datetime('2026-07-22T22:00:00Z'), implementedAt:null},
+  {id:'chg-2026-0002', title:'Deploy Auth Service v2.0',              description:'Major version upgrade of auth-service; breaking JWT format change', status:'scheduled', riskLevel:'high',   scheduledStart:datetime('2026-08-02T22:00:00Z'), scheduledEnd:datetime('2026-08-03T02:00:00Z'), implementedAt:null},
+  {id:'chg-2026-0003', title:'Upgrade Order API to 2.5.0',            description:'Rolling upgrade across both order-api containers', status:'draft', riskLevel:'low', scheduledStart:null, scheduledEnd:null, implementedAt:null}
+] AS row
+MERGE (c:ChangeRequest {id: row.id})
+SET c += row;
+
+// ---------------------------------------------------------------------
+// 10. ENVIRONMENTS & SLAs
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'env-prod',    name:'prod',    description:'Production'},
+  {id:'env-staging', name:'staging', description:'Pre-production staging'},
+  {id:'env-dev',     name:'dev',     description:'Developer sandbox'}
+] AS row
+MERGE (e:Environment {id: row.id})
+SET e += row;
+
+UNWIND [
+  {id:'sla-gold',   name:'Gold',   uptimeTargetPct:99.95, responseTimeMinutes:15, resolutionTimeHours:4},
+  {id:'sla-silver', name:'Silver', uptimeTargetPct:99.9,  responseTimeMinutes:30, resolutionTimeHours:8},
+  {id:'sla-bronze', name:'Bronze', uptimeTargetPct:99.5,  responseTimeMinutes:60, resolutionTimeHours:24}
+] AS row
+MERGE (s:SLA {id: row.id})
+SET s += row;
+
+// A small staging deployment, so "everything in staging" is non-trivial to query
+MERGE (vm:Server:Virtual {id:'vm-staging-01'})
+SET vm += {hostname:'staging-01.internal', ipAddress:'10.10.3.11', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'staging', cpuCores:4, ramGB:16, diskGB:100, hypervisor:'ESXi', vCpu:4};
+
+MERGE (ctr:Container {id:'ctr-staging-api-01'})
+SET ctr += {name:'order-api', image:'order-api', imageTag:'2.5.0-rc1', status:'running', ports:'8080', cpuLimit:1.0, memLimitMB:1024};
+
 // =====================================================================
 // RELATIONSHIPS
 // =====================================================================
@@ -248,3 +331,107 @@ UNWIND [
 ] AS pair
 MATCH (t:Ticket {id: pair[0]}), (p:Person {id: pair[1]})
 MERGE (t)-[:OPENED_BY]->(p);
+
+// ---------------------------------------------------------------------
+// Vendors & contracts -> physical servers
+// ---------------------------------------------------------------------
+UNWIND [
+  ['srv-phy-001','vnd-dell'], ['srv-phy-002','vnd-dell'],
+  ['srv-phy-003','vnd-hpe'],  ['srv-phy-004','vnd-hpe']
+] AS pair
+MATCH (s:Server:Physical {id: pair[0]}), (v:Vendor {id: pair[1]})
+MERGE (s)-[:SUPPLIED_BY]->(v);
+
+UNWIND [
+  ['srv-phy-001','ctc-dell-maint-01'], ['srv-phy-002','ctc-dell-maint-01'],
+  ['srv-phy-003','ctc-hpe-maint-01'],  ['srv-phy-004','ctc-hpe-maint-01']
+] AS pair
+MATCH (s:Server:Physical {id: pair[0]}), (c:Contract {id: pair[1]})
+MERGE (s)-[:COVERED_BY]->(c);
+
+UNWIND [
+  ['ctc-dell-maint-01','vnd-dell'], ['ctc-hpe-maint-01','vnd-hpe']
+] AS pair
+MATCH (c:Contract {id: pair[0]}), (v:Vendor {id: pair[1]})
+MERGE (c)-[:PROVIDED_BY]->(v);
+
+// ---------------------------------------------------------------------
+// Network interfaces & IP addresses -> physical servers
+// ---------------------------------------------------------------------
+UNWIND [
+  ['srv-phy-001','nic-srv-phy-001-eth0'], ['srv-phy-001','nic-srv-phy-001-mgmt'],
+  ['srv-phy-002','nic-srv-phy-002-eth0'], ['srv-phy-002','nic-srv-phy-002-mgmt'],
+  ['srv-phy-003','nic-srv-phy-003-eth0'], ['srv-phy-003','nic-srv-phy-003-mgmt'],
+  ['srv-phy-004','nic-srv-phy-004-eth0'], ['srv-phy-004','nic-srv-phy-004-mgmt']
+] AS pair
+MATCH (s:Server:Physical {id: pair[0]}), (n:NetworkInterface {id: pair[1]})
+MERGE (s)-[:HAS_INTERFACE]->(n);
+
+UNWIND [
+  ['nic-srv-phy-001-eth0','ip-10-10-1-11'],  ['nic-srv-phy-001-mgmt','ip-10-10-1-101'],
+  ['nic-srv-phy-002-eth0','ip-10-10-1-12'],  ['nic-srv-phy-002-mgmt','ip-10-10-1-102'],
+  ['nic-srv-phy-003-eth0','ip-10-20-1-11'],  ['nic-srv-phy-003-mgmt','ip-10-20-1-111'],
+  ['nic-srv-phy-004-eth0','ip-10-20-1-20'],  ['nic-srv-phy-004-mgmt','ip-10-20-1-120']
+] AS pair
+MATCH (n:NetworkInterface {id: pair[0]}), (ip:IPAddress {id: pair[1]})
+MERGE (n)-[:HAS_IP]->(ip);
+
+// ---------------------------------------------------------------------
+// Change requests -> concerned resource / people / originating ticket
+// ---------------------------------------------------------------------
+UNWIND [
+  ['chg-2026-0001','srv-phy-003'], ['chg-2026-0002','app-authsvc'], ['chg-2026-0003','app-orderapi']
+] AS pair
+MATCH (c:ChangeRequest {id: pair[0]})
+MATCH (n {id: pair[1]})
+WHERE n:Server OR n:Application OR n:Container
+MERGE (c)-[:CONCERNS]->(n);
+
+UNWIND [
+  ['chg-2026-0001','p-eve'],  ['chg-2026-0002','p-carol'], ['chg-2026-0003','p-bob']
+] AS pair
+MATCH (c:ChangeRequest {id: pair[0]}), (p:Person {id: pair[1]})
+MERGE (c)-[:REQUESTED_BY]->(p)
+MERGE (c)-[:ASSIGNED_TO]->(p);
+
+// chg-2026-0003 is still 'draft' and has no approver yet
+UNWIND [
+  ['chg-2026-0001','p-alice'], ['chg-2026-0002','p-alice']
+] AS pair
+MATCH (c:ChangeRequest {id: pair[0]}), (p:Person {id: pair[1]})
+MERGE (c)-[:APPROVED_BY]->(p);
+
+MATCH (t:Ticket {id:'tkt-1003'}), (c:ChangeRequest {id:'chg-2026-0001'})
+MERGE (t)-[:RELATES_TO]->(c);
+
+// ---------------------------------------------------------------------
+// New staging deployment (VM + container + extra Application deployment edge)
+// ---------------------------------------------------------------------
+MATCH (vm:Server:Virtual {id:'vm-staging-01'}), (host:Server:Physical {id:'srv-phy-002'})
+MERGE (vm)-[:HOSTED_ON]->(host);
+
+MATCH (ctr:Container {id:'ctr-staging-api-01'}), (vm:Server:Virtual {id:'vm-staging-01'})
+MERGE (ctr)-[:RUNS_ON]->(vm);
+
+MATCH (a:Application {id:'app-orderapi'}), (ctr:Container {id:'ctr-staging-api-01'})
+MERGE (a)-[:DEPLOYED_ON]->(ctr);
+
+// ---------------------------------------------------------------------
+// Environments: link every Server/Application to the Environment node
+// matching its existing `environment` string property.
+// ---------------------------------------------------------------------
+MATCH (n)
+WHERE (n:Server OR n:Application) AND n.environment IS NOT NULL
+MATCH (e:Environment {name: n.environment})
+MERGE (n)-[:IN_ENVIRONMENT]->(e);
+
+// ---------------------------------------------------------------------
+// SLAs -> Applications, based on criticality
+// ---------------------------------------------------------------------
+UNWIND [
+  ['app-orderapi','sla-gold'], ['app-authsvc','sla-gold'], ['app-cloudapi','sla-gold'],
+  ['app-webportal','sla-silver'], ['app-billing','sla-silver'],
+  ['app-crm','sla-bronze']
+] AS pair
+MATCH (a:Application {id: pair[0]}), (s:SLA {id: pair[1]})
+MERGE (a)-[:HAS_SLA]->(s);
