@@ -212,11 +212,53 @@ MATCH (e:Environment {name: 'staging'})
 MERGE (a)-[:IN_ENVIRONMENT]->(e);
 
 // ---------------------------------------------------------------------
-// I. WRITE OPERATIONS (create / update / delete)
+// I. DATA & CLASSIFICATION
+// ---------------------------------------------------------------------
+
+// I1. Full data footprint of an application: what it owns vs. merely consumes
+MATCH (a:Application {id: 'app-orderapi'})
+OPTIONAL MATCH (a)-[:OWNS_DATA]->(owned:Data)
+OPTIONAL MATCH (a)-[:CONSUMES_DATA]->(consumed:Data)
+RETURN a.name AS application, collect(DISTINCT owned.name) AS ownsData, collect(DISTINCT consumed.name) AS consumesData;
+
+// I2. Data lineage for one data asset: who owns it, and every other app that reads it
+MATCH (d:Data {id: 'data-customers'})
+OPTIONAL MATCH (owner:Application)-[:OWNS_DATA]->(d)
+OPTIONAL MATCH (consumer:Application)-[:CONSUMES_DATA]->(d)
+RETURN d.name AS data, owner.name AS systemOfRecord, collect(DISTINCT consumer.name) AS alsoConsumedBy;
+
+// I3. Regulatory/compliance audit: every application that touches PII or credentials,
+//     whether as owner or consumer
+MATCH (a:Application)-[r:OWNS_DATA|CONSUMES_DATA]->(d:Data)-[:CLASSIFIED_AS]->(cat:DataCategory)
+WHERE cat.regulatoryScope <> 'none'
+RETURN DISTINCT a.name AS application, d.name AS data, type(r) AS relationship,
+       cat.name AS category, cat.regulatoryScope AS regulation
+ORDER BY regulation, application;
+
+// I4. Data classification breakdown: how many data assets per sensitivity tier
+MATCH (d:Data)-[:CLASSIFIED_AS]->(cat:DataCategory)
+RETURN cat.sensitivity AS sensitivity, collect(DISTINCT cat.name) AS categories, count(DISTINCT d) AS dataAssets
+ORDER BY CASE sensitivity WHEN 'restricted' THEN 0 WHEN 'confidential' THEN 1 WHEN 'internal' THEN 2 ELSE 3 END;
+
+// I5. Data-aware blast radius: if a server goes down, which data assets (and their
+//     classification) are affected, and which applications rely on that data
+MATCH (s:Server {id: 'vm-app-01'})<-[:STORED_ON]-(d:Data)
+OPTIONAL MATCH (d)-[:CLASSIFIED_AS]->(cat:DataCategory)
+OPTIONAL MATCH (d)<-[:OWNS_DATA|CONSUMES_DATA]-(a:Application)
+RETURN s.hostname AS server, d.name AS data, collect(DISTINCT cat.name) AS categories,
+       collect(DISTINCT a.name) AS affectedApplications;
+
+// I6. Incidents/tickets that were actually about data (not just infrastructure)
+MATCH (d:Data)<-[:IMPACTS]-(i:Incident)
+OPTIONAL MATCH (d)<-[:CONCERNS]-(t:Ticket)
+RETURN d.name AS data, i.title AS incident, i.severity AS severity, collect(DISTINCT t.id) AS tickets;
+
+// ---------------------------------------------------------------------
+// J. WRITE OPERATIONS (create / update / delete)
 // These mirror what the web app does through its Add/Edit/Delete forms.
 // ---------------------------------------------------------------------
 
-// I1. Create a new physical server
+// J1. Create a new physical server
 CREATE (s:Server:Physical {
   id: 'srv-phy-005',
   hostname: 'hv-par1-03',
@@ -234,11 +276,11 @@ CREATE (s:Server:Physical {
 })
 RETURN s;
 
-// I2. Attach it to a location
+// J2. Attach it to a location
 MATCH (s:Server {id: 'srv-phy-005'}), (l:Location {id: 'loc-dc-par1'})
 MERGE (s)-[:LOCATED_IN]->(l);
 
-// I3. Create a new Virtual server hosted on it, in one statement
+// J3. Create a new Virtual server hosted on it, in one statement
 MATCH (host:Server:Physical {id: 'srv-phy-005'})
 CREATE (vm:Server:Virtual {
   id: 'vm-web-03', hostname: 'web-03.prod.local', ipAddress: '10.10.2.13',
@@ -247,7 +289,7 @@ CREATE (vm:Server:Virtual {
 })-[:HOSTED_ON]->(host)
 RETURN vm;
 
-// I4. Generic "add node with arbitrary label + properties" (what the app's
+// J4. Generic "add node with arbitrary label + properties" (what the app's
 // Add Node form runs; label & props come from user input, id always required)
 // :params { label: 'Application', props: { id: 'app-newsvc', name: 'New Service', criticality: 'low' } }
 CALL apoc.merge.node([$label], {id: $props.id}, $props, $props) YIELD node
@@ -256,45 +298,45 @@ RETURN node;
 // avoids APOC by building the label into the query string safely (see
 // app/src/lib/neo4j.js) since the target Neo4j instance may not have it.
 
-// I5. Generic "add relationship between two existing nodes by id"
+// J5. Generic "add relationship between two existing nodes by id"
 MATCH (a {id: $fromId}), (b {id: $toId})
 CALL apoc.merge.relationship(a, $relType, {}, $props, b) YIELD rel
 RETURN rel;
-// Same remark as I4 - see app/src/lib/neo4j.js for the APOC-free equivalent.
+// Same remark as J4 - see app/src/lib/neo4j.js for the APOC-free equivalent.
 
-// I6. Update a node's properties (partial update / PATCH semantics)
+// J6. Update a node's properties (partial update / PATCH semantics)
 MATCH (a:Application {id: 'app-orderapi'})
 SET a.version = '2.5.0', a.criticality = 'critical', a.updatedAt = datetime()
 RETURN a;
 
-// I7. Update a relationship's properties
+// J7. Update a relationship's properties
 MATCH (:Application {id: 'app-orderapi'})-[r:DEPENDS_ON]->(:Application {id: 'app-authsvc'})
 SET r.type = 'synchronous', r.timeoutMs = 2000
 RETURN r;
 
-// I8. Close a ticket and resolve its linked incident
+// J8. Close a ticket and resolve its linked incident
 MATCH (t:Ticket {id: 'tkt-1004'})
 SET t.status = 'resolved', t.updatedAt = datetime()
 WITH t
 MATCH (t)-[:TRACKS]->(i:Incident)
 SET i.status = 'resolved', i.resolvedAt = datetime();
 
-// I9. Move a VM to a different physical host (replace a relationship)
+// J9. Move a VM to a different physical host (replace a relationship)
 MATCH (vm:Server:Virtual {id: 'vm-app-02'})-[r:HOSTED_ON]->(:Server:Physical)
 DELETE r
 WITH vm
 MATCH (newHost:Server:Physical {id: 'srv-phy-001'})
 MERGE (vm)-[:HOSTED_ON]->(newHost);
 
-// I10. Decommission a server: detach then delete (keeps history-free graph tidy)
+// J10. Decommission a server: detach then delete (keeps history-free graph tidy)
 MATCH (s:Server {id: 'srv-phy-005'})
 DETACH DELETE s;
 
-// I11. Delete a single relationship between two known nodes
+// J11. Delete a single relationship between two known nodes
 MATCH (:Application {id: 'app-crm'})-[r:DEPENDS_ON]->(:Application {id: 'app-authsvc'})
 DELETE r;
 
-// I12. Create an incident + link it to affected resources + reporter in one go
+// J12. Create an incident + link it to affected resources + reporter in one go
 MATCH (reporter:Person {id: 'p-eve'})
 MATCH (target:Server {id: 'srv-phy-004'})
 CREATE (i:Incident {
@@ -305,7 +347,7 @@ CREATE (i:Incident {
 CREATE (i)-[:REPORTED_BY]->(reporter)
 RETURN i;
 
-// I13. Open a ticket against that incident and assign it
+// J13. Open a ticket against that incident and assign it
 MATCH (i:Incident {id: 'inc-2026-0005'}), (assignee:Person {id: 'p-alice'}), (opener:Person {id: 'p-eve'})
 CREATE (t:Ticket {
   id: 'tkt-1006', title: 'Fix nightly backup failures', description: 'See inc-2026-0005',

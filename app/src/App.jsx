@@ -17,7 +17,8 @@ import {
   updateRelationshipProperties,
   deleteRelationship,
   fetchAllLabels,
-  fetchAllRelationshipTypes
+  fetchAllRelationshipTypes,
+  getCurrentUserProfile
 } from './lib/neo4j.js';
 import { recordsToGraph } from './lib/graphModel.js';
 
@@ -25,6 +26,8 @@ export default function App() {
   const [connection, setConnection] = useState(null); // { database }
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
+  const [profile, setProfile] = useState(null); // { username, roles, profile: 'admin'|'readonly', detected }
+  const isAdmin = profile?.profile === 'admin';
 
   const [graph, setGraph] = useState({ nodes: [], relationships: [] });
   const [selection, setSelection] = useState(null); // { kind: 'node'|'relationship', data }
@@ -58,6 +61,8 @@ export default function App() {
     setConnectionError(null);
     try {
       await connect(form);
+      const detectedProfile = await getCurrentUserProfile();
+      setProfile(detectedProfile);
       setConnection({ database: form.database });
       const [labels, types] = await Promise.all([
         fetchAllLabels(form.database),
@@ -76,8 +81,19 @@ export default function App() {
   function handleDisconnect() {
     disconnect();
     setConnection(null);
+    setProfile(null);
     setGraph({ nodes: [], relationships: [] });
     setSelection(null);
+  }
+
+  /** Defense-in-depth: the real enforcement is Neo4j's own role privileges
+   * (a write rejected server-side stays rejected regardless of this check).
+   * This just keeps mutation handlers from firing when the UI that should
+   * have hidden them was somehow bypassed. */
+  function requireAdmin() {
+    if (!isAdmin) {
+      throw new Error('Read-only profile: this account cannot make changes.');
+    }
   }
 
   function handleSelectNode(node) {
@@ -107,12 +123,14 @@ export default function App() {
   }
 
   async function handleCreateNode({ labels, properties }) {
+    requireAdmin();
     await createNode({ labels, properties }, connection?.database);
     setModal(null);
     await withBusy(refresh);
   }
 
   async function handleCreateRelationship(payload) {
+    requireAdmin();
     await createRelationship(payload, connection?.database);
     setModal(null);
     await withBusy(refresh);
@@ -120,6 +138,7 @@ export default function App() {
 
   function handleUpdateNode(elementId, properties) {
     withBusy(async () => {
+      requireAdmin();
       await updateNodeProperties({ elementId, properties }, connection?.database);
       await refresh();
       setSelection(null);
@@ -128,6 +147,7 @@ export default function App() {
 
   function handleAddLabel(elementId, label) {
     withBusy(async () => {
+      requireAdmin();
       await addLabel({ elementId, label }, connection?.database);
       await refresh();
       setSelection(null);
@@ -136,6 +156,7 @@ export default function App() {
 
   function handleDeleteNode(elementId) {
     withBusy(async () => {
+      requireAdmin();
       await deleteNode({ elementId }, connection?.database);
       await refresh();
       setSelection(null);
@@ -144,6 +165,7 @@ export default function App() {
 
   function handleUpdateRelationship(elementId, properties) {
     withBusy(async () => {
+      requireAdmin();
       await updateRelationshipProperties({ elementId, properties }, connection?.database);
       await refresh();
       setSelection(null);
@@ -152,6 +174,7 @@ export default function App() {
 
   function handleDeleteRelationship(elementId) {
     withBusy(async () => {
+      requireAdmin();
       await deleteRelationship({ elementId }, connection?.database);
       await refresh();
       setSelection(null);
@@ -166,6 +189,7 @@ export default function App() {
           connected={!!connection}
           connecting={connecting}
           error={connectionError}
+          profile={profile}
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
         />
@@ -174,10 +198,16 @@ export default function App() {
       {connection && (
         <>
           <div className="toolbar">
-            <QueryBar onRun={runAndRender} running={running} />
+            <QueryBar onRun={runAndRender} running={running} readOnly={!isAdmin} />
             <div className="toolbar-actions">
-              <button type="button" onClick={() => setModal('addNode')}>+ Node</button>
-              <button type="button" onClick={() => setModal('addRelationship')}>+ Relationship</button>
+              {isAdmin ? (
+                <>
+                  <button type="button" onClick={() => setModal('addNode')}>+ Node</button>
+                  <button type="button" onClick={() => setModal('addRelationship')}>+ Relationship</button>
+                </>
+              ) : (
+                <span className="readonly-note">Read-only profile — sign in as admin to add or edit data.</span>
+              )}
             </div>
           </div>
 
@@ -192,6 +222,7 @@ export default function App() {
             <Inspector
               selection={selection}
               busy={busy}
+              readOnly={!isAdmin}
               onUpdateNode={handleUpdateNode}
               onAddLabel={handleAddLabel}
               onDeleteNode={handleDeleteNode}
@@ -203,7 +234,7 @@ export default function App() {
         </>
       )}
 
-      {modal === 'addNode' && (
+      {modal === 'addNode' && isAdmin && (
         <AddNodeModal
           knownLabels={knownLabels}
           busy={busy}
@@ -211,7 +242,7 @@ export default function App() {
           onCreate={handleCreateNode}
         />
       )}
-      {modal === 'addRelationship' && (
+      {modal === 'addRelationship' && isAdmin && (
         <AddRelationshipModal
           nodes={graph.nodes}
           knownTypes={knownTypes}

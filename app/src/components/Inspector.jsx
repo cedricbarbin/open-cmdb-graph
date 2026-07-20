@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import PropertyEditor, { propertiesToRows, rowsToProperties } from './PropertyEditor.jsx';
 
-export default function Inspector({ selection, onUpdateNode, onDeleteNode, onAddLabel, onUpdateRelationship, onDeleteRelationship, onClose, busy }) {
+export default function Inspector({ selection, onUpdateNode, onDeleteNode, onAddLabel, onUpdateRelationship, onDeleteRelationship, onClose, busy, readOnly }) {
   const [rows, setRows] = useState([]);
   const [newLabel, setNewLabel] = useState('');
 
@@ -66,7 +66,9 @@ export default function Inspector({ selection, onUpdateNode, onDeleteNode, onAdd
         <button type="button" className="icon-btn" onClick={onClose}>&times;</button>
       </div>
 
-      {kind === 'node' && (
+      {readOnly && <p className="readonly-note">Read-only profile — viewing only.</p>}
+
+      {!readOnly && kind === 'node' && (
         <form className="inline-form" onSubmit={handleAddLabel}>
           <input
             placeholder="add label…"
@@ -78,12 +80,25 @@ export default function Inspector({ selection, onUpdateNode, onDeleteNode, onAdd
       )}
 
       <h4>Properties</h4>
-      <PropertyEditor rows={rows} onChange={setRows} />
+      {readOnly ? (
+        <dl className="property-list">
+          {rows.map((row) => (
+            <React.Fragment key={row.key}>
+              <dt>{row.key}</dt>
+              <dd>{row.value}</dd>
+            </React.Fragment>
+          ))}
+        </dl>
+      ) : (
+        <PropertyEditor rows={rows} onChange={setRows} />
+      )}
 
-      <div className="inspector-actions">
-        <button type="button" onClick={handleSave} disabled={busy}>Save changes</button>
-        <button type="button" className="danger" onClick={handleDelete} disabled={busy}>Delete {kind}</button>
-      </div>
+      {!readOnly && (
+        <div className="inspector-actions">
+          <button type="button" onClick={handleSave} disabled={busy}>Save changes</button>
+          <button type="button" className="danger" onClick={handleDelete} disabled={busy}>Delete {kind}</button>
+        </div>
+      )}
     </div>
   );
 }

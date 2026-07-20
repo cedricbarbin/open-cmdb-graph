@@ -8,8 +8,9 @@ React app to explore and edit the graph visually with Neo4j NVL.
 ```
 cmdb/
 ├── cypher/
+│   ├── 00_security_setup.cypher            optional: cmdb_readonly / cmdb_admin roles + demo users
 │   ├── 01_constraints_and_indexes.cypher   schema: uniqueness constraints, indexes, fulltext index
-│   ├── 02_sample_data.cypher               ~80 nodes / ~140 relationships of realistic sample data
+│   ├── 02_sample_data.cypher               ~90 nodes / ~160 relationships of realistic sample data
 │   └── 03_sample_queries.cypher            read/write query cookbook (also used as app presets)
 └── app/                                    React + @neo4j-nvl/react + neo4j-driver
 ```
@@ -37,6 +38,8 @@ cmdb/
 | `:Contract`                  | Maintenance/support contract               | id, contractNumber, type, startDate, endDate, cost, currency |
 | `:Environment`               | First-class prod/staging/dev entity        | id, name, description |
 | `:SLA`                       | Service level agreement tier               | id, name, uptimeTargetPct, responseTimeMinutes, resolutionTimeHours |
+| `:Data`                      | Data asset (database, cache, log store…)   | id, name, description, type, format, volumeGB |
+| `:DataCategory`              | Data classification taxonomy entry         | id, name, sensitivity (public/internal/confidential/restricted), regulatoryScope |
 
 Every node carries a unique `id` string property (enforced by constraints) —
 this is what all sample Cypher `MERGE`s and the app's write operations key off.
@@ -76,8 +79,15 @@ queries (`MATCH (s:Server)`) work across both; same pattern for
 (:Server:Physical)   -[:COVERED_BY]->   (:Contract)
 (:Contract)          -[:PROVIDED_BY]->  (:Vendor)
 
-(:Server | :Application) -[:IN_ENVIRONMENT]-> (:Environment)
+(:Server | :Application | :Data) -[:IN_ENVIRONMENT]-> (:Environment)
 (:Application)       -[:HAS_SLA]->      (:SLA)
+
+(:Application)       -[:OWNS_DATA]->    (:Data)   // system of record
+(:Application)       -[:CONSUMES_DATA]->(:Data)   // reads/depends on it (data lineage)
+(:Data)              -[:CLASSIFIED_AS]->(:DataCategory)
+(:Data)              -[:STORED_ON]->    (:Server)
+(:Incident)          -[:IMPACTS]->      (:Data)   // Data is also a valid IMPACTS/CONCERNS target
+(:Ticket)            -[:CONCERNS]->     (:Data)
 ```
 
 This lets you answer typical CMDB questions directly with graph traversals:
@@ -85,11 +95,21 @@ This lets you answer typical CMDB questions directly with graph traversals:
 traversal), "blast radius of an incident" (`IMPACTS` + `DEPENDS_ON*`), "who
 owns this app" (`OWNS`), "what's open against this server" (`CONCERNS`),
 "which contracts are about to expire" (`COVERED_BY`), "what's approved to go
-live this week" (`ChangeRequest.status` + `APPROVED_BY`), or "show me
-everything in staging" (`IN_ENVIRONMENT`) as a relationship traversal instead
-of a property filter scattered across every label.
+live this week" (`ChangeRequest.status` + `APPROVED_BY`), "show me everything
+in staging" (`IN_ENVIRONMENT`), or "which applications touch regulated data"
+(`OWNS_DATA`/`CONSUMES_DATA` + `CLASSIFIED_AS` + `DataCategory.regulatoryScope`)
+as a relationship traversal instead of a property filter scattered across
+every label.
 
-Note on denormalization: `Server`/`Application` nodes still carry a flat
+Data modeling note: `:Data` is deliberately separate from `:Application` —
+an application node is "the order-api service", a data node is "the orders
+database it reads/writes". Splitting them lets more than one application
+point at the same data asset (`OWNS_DATA` for the system of record,
+`CONSUMES_DATA` for everyone else reading it), which is what makes data
+lineage and "who touches this PII" queries possible in the first place; if
+data lived as a property on `Application` there'd be nothing to traverse.
+
+Note on denormalization: `Server`/`Application`/`Data` nodes still carry a flat
 `environment` string property *and* now have an `IN_ENVIRONMENT` relationship
 to the matching `:Environment` node. That's intentional, not an oversight —
 the property is convenient for a quick `WHERE n.environment = 'prod'` filter,
@@ -115,16 +135,73 @@ Or paste the files into Neo4j Browser / Neo4j Desktop's query pane and run
 each statement (they're `;`-separated). `03_sample_queries.cypher` is a
 cookbook organized in lettered sections — A/B discovery & topology, C
 application dependencies, D incidents/tickets, E network/IPAM, F vendors
-& contracts, G change management, H environments/SLAs, and I write
-operations. Run individual blocks (A1, B2, D3, G1, …) as needed; the last
-section (`I.` write operations) mutates the sample data so run those
-selectively.
+& contracts, G change management, H environments/SLAs, I data &
+classification, and J write operations. Run individual blocks (A1, B2, D3,
+G1, I3, …) as needed; the last section (`J.` write operations) mutates the
+sample data so run those selectively.
 
-The data is idempotent (`MERGE` on `id`) except for section I of the cookbook,
+The data is idempotent (`MERGE` on `id`) except for section J of the cookbook,
 which uses `CREATE` on purpose (it demonstrates ad hoc writes matching what
 the app does) — re-running those blocks will duplicate nodes.
 
-## 3. Run the visualization app
+## 3. Authentication & authorization
+
+The app doesn't implement its own login system — it authenticates with
+whatever Neo4j credentials you give it in the **Sign in** form (the same
+`neo4j-driver` Bolt auth used everywhere else), and authorization is
+Neo4j's own native role-based access control, not something bolted onto
+the client. That matters here specifically because there's no backend: the
+browser holds the real database credentials, so the only trustworthy place
+to enforce "this account can't write" is the database itself — a UI that
+merely hides a button is not a security boundary.
+
+**Setup** (Neo4j Enterprise Edition or Aura only — see the Community Edition
+note below): run `cypher/00_security_setup.cypher` against the `system`
+database to create two roles and two example users:
+
+```bash
+cypher-shell -a neo4j://localhost:7687 -u neo4j -p <password> -d system -f cypher/00_security_setup.cypher
+```
+
+| Profile | Role | Example user | Can do |
+|---|---|---|---|
+| Read-only | `cmdb_readonly` | `cmdb_viewer` | Browse the graph, run read queries |
+| Admin | `cmdb_admin` | `cmdb_operator` | Everything read-only can, plus create/update/delete nodes and relationships, add labels, and (since the app's forms can introduce new labels/relationship types on the fly) evolve the schema |
+
+Both example users are created with `CHANGE REQUIRED`, so change their demo
+passwords on first login. `cmdb_admin` is deliberately scoped to *this
+database's* data and schema — it does not include DBMS-level privileges like
+user/role management or other databases, even though the app calls it
+"admin".
+
+**How the app picks it up**: after signing in, the app runs `SHOW CURRENT
+USER` against the `system` database to read the account's roles, maps them
+to a profile, and shows a badge next to the connection status (e.g. `alice ·
+admin` or `bob · read-only`). For a read-only profile it hides the *"+
+Node"*/*"+ Relationship"* buttons, renders the Inspector's properties as
+plain text instead of editable fields, and warns inline in the query bar if
+a typed query looks like a write. None of that is what actually stops a
+write — `GRANT WRITE ON GRAPH neo4j TO cmdb_admin` (and its absence for
+`cmdb_readonly`) is what stops it; Neo4j will reject a `CREATE`/`SET`/`DELETE`
+from a `cmdb_readonly` session regardless of what the browser tried to do.
+
+**Role-detection fallbacks** (see `getCurrentUserProfile` in
+`app/src/lib/neo4j.js`): if the account has no custom roles, or `SHOW
+CURRENT USER` isn't available at all, the app defaults to showing the admin
+UI rather than silently locking the account out of its own data — a
+mis-detected profile only affects what the UI *offers*, never what Neo4j
+actually *allows*, so failing open here doesn't create a security hole, only
+a UX one (a write attempt that Neo4j rejects still surfaces as a normal error
+toast).
+
+**Community Edition**: custom roles/privileges (`CREATE ROLE`, `GRANT ...`)
+require Enterprise Edition or Aura. On Community Edition every authenticated
+user is effectively unrestricted, so there's no real "read-only account" to
+create — running the app against Community Edition, everyone gets the admin
+profile (matching the "empty roles list" fallback above), because there's
+nothing for the UI to meaningfully restrict.
+
+## 4. Run the visualization app
 
 ```bash
 cd app
@@ -147,30 +224,35 @@ credentials to the client.
 
 - **Query bar**: run any of the preset Cypher queries (topology views,
   dependency graphs, open incidents, ticket boards…) or type your own
-  read/write Cypher and hit Run.
+  Cypher and hit Run. Available to both profiles; for a read-only profile,
+  a query that looks like a write is flagged inline and the Run button is
+  disabled (see section 3) rather than sending it and waiting for Neo4j to
+  reject it.
 - **Click a node or relationship** to open the Inspector: edit properties
   in place, add an extra label to a node, or delete the node/relationship
-  (node delete detaches all its relationships).
+  (node delete detaches all its relationships). Read-only profiles get a
+  view-only version of the same panel.
 - **+ Node**: pick one or more labels (CMDB ones are suggested, or type your
   own) and fill in properties; `id` is required since it's the unique key
-  the rest of the model relies on.
+  the rest of the model relies on. Admin only.
 - **+ Relationship**: pick a source/target node from what's currently on
   the canvas, a type (CMDB types suggested via autocomplete), and optional
-  properties.
+  properties. Admin only.
 
 All writes go straight to the database via parameterized Cypher — labels and
 relationship types can't be parameterized in Cypher, so `src/lib/neo4j.js`
 validates them against an identifier allow-list before interpolating them
 into the query string (prevents Cypher injection through that path).
 
-## 4. Extending the model further
+## 5. Extending the model further
 
-The previous version of this README suggested four extensions; all four are
-now implemented (schema, sample data, cookbook queries, and app support):
+Earlier versions of this README suggested extensions; the following are now
+implemented (schema, sample data, cookbook queries, and app support):
 IPAM (`:NetworkInterface`/`:IPAddress`), change management (`:ChangeRequest`),
-asset/warranty tracking (`:Vendor`/`:Contract`), and first-class
-`:Environment`/`:SLA` nodes. See the tables and diagram in section 1, and
-cookbook sections E–H for example queries.
+asset/warranty tracking (`:Vendor`/`:Contract`), first-class
+`:Environment`/`:SLA` nodes, and data classification (`:Data`/`:DataCategory`
+with `OWNS_DATA`/`CONSUMES_DATA`/`CLASSIFIED_AS`). See the tables and diagram
+in section 1, and cookbook sections E–I for example queries.
 
 Further ideas that still fit this schema without restructuring it:
 - `:Subnet`/`:VLAN` nodes above `:IPAddress` for full IPAM (currently IPs are
@@ -182,3 +264,6 @@ Further ideas that still fit this schema without restructuring it:
 - Versioned/point-in-time snapshots (e.g. `:Application` -[:HAD_VERSION]->
   `:ApplicationVersion {validFrom, validTo}`) if you need historical CMDB
   state rather than just "current".
+- `:DataFlow` edges between `:Data` assets (instead of only `Application`
+  -> `Data`) if you need to model ETL/replication pipelines that move data
+  between stores independently of the applications that own them.

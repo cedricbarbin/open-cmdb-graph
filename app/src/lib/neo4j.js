@@ -40,6 +40,56 @@ export function isConnected() {
   return driver !== null;
 }
 
+const ADMIN_ROLE_HINTS = ['cmdb_admin', 'admin', 'architect', 'publisher'];
+const READONLY_ROLE_HINTS = ['cmdb_readonly', 'reader'];
+
+/**
+ * Determines the app-level profile ('admin' | 'readonly') for the currently
+ * authenticated user by reading their Neo4j roles via `SHOW CURRENT USER`
+ * (an administration command, so it must run against the `system` database
+ * regardless of which database the app otherwise talks to).
+ *
+ * The real security boundary is always Neo4j's own role privileges (see
+ * cypher/00_security_setup.cypher) - a write rejected by the database stays
+ * rejected no matter what this function returns. This only decides what the
+ * UI *offers*, so its fallbacks intentionally fail open to 'admin' rather
+ * than silently hiding functionality:
+ *   - roles known to be read-only (cmdb_readonly, reader)      -> readonly
+ *   - roles known to be admin-ish (cmdb_admin, admin, ...)     -> admin
+ *   - empty roles list (Community Edition has no custom roles) -> admin
+ *   - unrecognized non-empty roles                             -> readonly
+ *   - SHOW CURRENT USER unsupported/unavailable                -> admin
+ */
+export async function getCurrentUserProfile() {
+  if (!driver) throw new Error('Not connected to Neo4j');
+  const session = driver.session({ database: 'system', defaultAccessMode: neo4j.session.READ });
+  try {
+    const result = await session.run('SHOW CURRENT USER YIELD user, roles RETURN user, roles');
+    const record = result.records[0];
+    if (!record) return { username: null, roles: [], profile: 'admin', detected: false };
+
+    const username = record.get('user');
+    const roles = record.get('roles') ?? [];
+    const lowerRoles = roles.map((r) => String(r).toLowerCase());
+
+    let profile;
+    if (lowerRoles.length === 0) {
+      profile = 'admin';
+    } else if (lowerRoles.some((r) => ADMIN_ROLE_HINTS.includes(r))) {
+      profile = 'admin';
+    } else if (lowerRoles.some((r) => READONLY_ROLE_HINTS.includes(r))) {
+      profile = 'readonly';
+    } else {
+      profile = 'readonly';
+    }
+    return { username, roles, profile, detected: true };
+  } catch {
+    return { username: null, roles: [], profile: 'admin', detected: false };
+  } finally {
+    await session.close();
+  }
+}
+
 async function runQuery(cypher, params = {}, database) {
   if (!driver) throw new Error('Not connected to Neo4j');
   const session = driver.session({ database, defaultAccessMode: neo4j.session.WRITE });

@@ -7,7 +7,7 @@ const DEFAULT_FORM = {
   database: 'neo4j'
 };
 
-export default function ConnectionPanel({ connected, connecting, error, onConnect, onDisconnect }) {
+export default function ConnectionPanel({ connected, connecting, error, profile, onConnect, onDisconnect }) {
   const [form, setForm] = useState(DEFAULT_FORM);
 
   function handleChange(field) {
@@ -20,11 +20,20 @@ export default function ConnectionPanel({ connected, connecting, error, onConnec
   }
 
   if (connected) {
+    const isAdmin = profile?.profile === 'admin';
     return (
       <div className="connection-panel connected">
         <span className="status-dot" />
         <span>Connected to {form.uri} ({form.database})</span>
-        <button type="button" onClick={onDisconnect}>Disconnect</button>
+        {profile && (
+          <span
+            className={`profile-badge profile-${profile.profile}`}
+            title={profile.detected ? `Neo4j roles: ${profile.roles.join(', ') || '(none)'}` : 'Role could not be determined'}
+          >
+            {profile.username ?? form.username} · {isAdmin ? 'admin' : 'read-only'}
+          </span>
+        )}
+        <button type="button" onClick={onDisconnect}>Sign out</button>
       </div>
     );
   }
@@ -41,7 +50,7 @@ export default function ConnectionPanel({ connected, connecting, error, onConnec
       />
       <input value={form.database} onChange={handleChange('database')} placeholder="database" />
       <button type="submit" disabled={connecting}>
-        {connecting ? 'Connecting…' : 'Connect'}
+        {connecting ? 'Signing in…' : 'Sign in'}
       </button>
       {error && <span className="connection-error">{error}</span>}
     </form>

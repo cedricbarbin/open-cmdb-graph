@@ -6,7 +6,7 @@ const CMDB_LABELS = [
   'Datacenter', 'CloudRegion', 'Physical', 'Virtual', 'Container',
   'Application', 'Team', 'Person', 'Incident', 'Ticket',
   'ChangeRequest', 'NetworkInterface', 'IPAddress', 'Vendor', 'Contract',
-  'Environment', 'SLA'
+  'Environment', 'SLA', 'Data', 'DataCategory'
 ];
 
 export default function AddNodeModal({ knownLabels = [], onClose, onCreate, busy }) {

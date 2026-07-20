@@ -21,7 +21,9 @@ export const LABEL_STYLE = {
   Vendor:            { color: '#8D6E63', captionFields: ['name'] },
   Contract:          { color: '#A1887F', captionFields: ['contractNumber', 'name'] },
   Environment:       { color: '#26C6DA', captionFields: ['name'] },
-  SLA:               { color: '#D4E157', captionFields: ['name'] }
+  SLA:               { color: '#D4E157', captionFields: ['name'] },
+  Data:              { color: '#5C6BC0', captionFields: ['name'] },
+  DataCategory:      { color: '#3949AB', captionFields: ['name'] }
 };
 
 const DEFAULT_STYLE = { color: '#90A4AE', captionFields: ['name', 'title', 'hostname', 'id'] };

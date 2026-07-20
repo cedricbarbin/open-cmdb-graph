@@ -62,13 +62,27 @@ RETURN e AS n1, r AS rel, res AS n2
 UNION
 MATCH (a:Application)-[r:HAS_SLA]->(sla:SLA)
 RETURN a AS n1, r AS rel, sla AS n2`
+  },
+  {
+    label: 'Data assets, ownership & classification',
+    cypher: `MATCH (a:Application)-[r1:OWNS_DATA]->(d:Data)
+OPTIONAL MATCH (a2:Application)-[r2:CONSUMES_DATA]->(d)
+OPTIONAL MATCH (d)-[r3:CLASSIFIED_AS]->(cat:DataCategory)
+RETURN a, r1, d, r2, a2, r3, cat`
   }
 ];
 
-export default function QueryBar({ onRun, running }) {
+// Client-side heuristic only, for a fast "this will probably be rejected"
+// hint - the real enforcement is Neo4j's own role privileges, which reject
+// writes from a read-only role no matter what this regex thinks.
+const WRITE_KEYWORD_RE = /\b(CREATE|MERGE|SET|DELETE|REMOVE|DROP)\b/i;
+
+export default function QueryBar({ onRun, running, readOnly }) {
   const [cypher, setCypher] = useState(PRESET_QUERIES[0].cypher);
+  const looksLikeWrite = readOnly && WRITE_KEYWORD_RE.test(cypher);
 
   function runCurrent() {
+    if (looksLikeWrite) return;
     onRun(cypher);
   }
 
@@ -82,20 +96,27 @@ export default function QueryBar({ onRun, running }) {
 
   return (
     <div className="query-bar">
-      <select onChange={handlePreset} defaultValue={PRESET_QUERIES[0].label}>
-        {PRESET_QUERIES.map((p) => (
-          <option key={p.label} value={p.label}>{p.label}</option>
-        ))}
-      </select>
-      <textarea
-        rows={2}
-        value={cypher}
-        onChange={(e) => setCypher(e.target.value)}
-        spellCheck={false}
-      />
-      <button type="button" onClick={runCurrent} disabled={running}>
-        {running ? 'Running…' : 'Run'}
-      </button>
+      <div className="query-bar-input">
+        <select onChange={handlePreset} defaultValue={PRESET_QUERIES[0].label}>
+          {PRESET_QUERIES.map((p) => (
+            <option key={p.label} value={p.label}>{p.label}</option>
+          ))}
+        </select>
+        <textarea
+          rows={2}
+          value={cypher}
+          onChange={(e) => setCypher(e.target.value)}
+          spellCheck={false}
+        />
+        <button type="button" onClick={runCurrent} disabled={running || looksLikeWrite}>
+          {running ? 'Running…' : 'Run'}
+        </button>
+      </div>
+      {looksLikeWrite && (
+        <p className="query-bar-warning">
+          Read-only profile — this looks like a write query and will be rejected by Neo4j.
+        </p>
+      )}
     </div>
   );
 }

@@ -7,7 +7,8 @@ const CMDB_REL_TYPES = [
   'OWNS', 'MANAGES', 'MEMBER_OF', 'IMPACTS', 'REPORTED_BY',
   'TRACKS', 'CONCERNS', 'ASSIGNED_TO', 'OPENED_BY',
   'HAS_INTERFACE', 'HAS_IP', 'SUPPLIED_BY', 'COVERED_BY', 'PROVIDED_BY',
-  'REQUESTED_BY', 'APPROVED_BY', 'RELATES_TO', 'IN_ENVIRONMENT', 'HAS_SLA'
+  'REQUESTED_BY', 'APPROVED_BY', 'RELATES_TO', 'IN_ENVIRONMENT', 'HAS_SLA',
+  'OWNS_DATA', 'CONSUMES_DATA', 'CLASSIFIED_AS', 'STORED_ON'
 ];
 
 export default function AddRelationshipModal({ nodes = [], knownTypes = [], onClose, onCreate, busy }) {

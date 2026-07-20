@@ -202,6 +202,39 @@ SET vm += {hostname:'staging-01.internal', ipAddress:'10.10.3.11', os:'Ubuntu', 
 MERGE (ctr:Container {id:'ctr-staging-api-01'})
 SET ctr += {name:'order-api', image:'order-api', imageTag:'2.5.0-rc1', status:'running', ports:'8080', cpuLimit:1.0, memLimitMB:1024};
 
+// ---------------------------------------------------------------------
+// 11. DATA & DATA CATEGORIES (data assets owned/consumed by applications)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'cat-pii',         name:'Personally Identifiable Information', sensitivity:'restricted',   regulatoryScope:'GDPR',    description:'Data that can identify an individual: name, address, email, phone'},
+  {id:'cat-credentials', name:'Authentication Credentials',          sensitivity:'restricted',   regulatoryScope:'GDPR',    description:'Passwords, API keys, and OAuth tokens'},
+  {id:'cat-financial',   name:'Financial Data',                      sensitivity:'confidential', regulatoryScope:'PCI-DSS', description:'Payment, invoicing, and transactional financial records'},
+  {id:'cat-operational', name:'Operational Data',                    sensitivity:'internal',     regulatoryScope:'none',    description:'Logs, metrics, and other technical operational data'},
+  {id:'cat-public',      name:'Public Data',                         sensitivity:'public',       regulatoryScope:'none',    description:'Data intended for public consumption'}
+] AS row
+MERGE (cat:DataCategory {id: row.id})
+SET cat += row;
+
+UNWIND [
+  {id:'data-customers',        name:'Customer Database',      description:'Master customer records: identity, contact, address', type:'database',  format:'PostgreSQL',       volumeGB:120, environment:'prod'},
+  {id:'data-orders',           name:'Orders Database',        description:'Order transactions and line items',                   type:'database',  format:'PostgreSQL',       volumeGB:340, environment:'prod'},
+  {id:'data-auth-credentials', name:'Credential Store',       description:'Hashed passwords, API keys, and OAuth tokens',        type:'database',  format:'PostgreSQL',       volumeGB:8,   environment:'prod'},
+  {id:'data-billing-ledger',   name:'Billing Ledger',         description:'Invoices, payments, and billing transactions',        type:'database',  format:'PostgreSQL',       volumeGB:95,  environment:'prod'},
+  {id:'data-web-sessions',     name:'Web Session Cache',      description:'Ephemeral user session state',                        type:'cache',      format:'Redis',            volumeGB:4,   environment:'prod'},
+  {id:'data-api-logs',         name:'Cloud API Access Logs',  description:'Request/response logs for the public API gateway',    type:'log-store',  format:'JSON/CloudWatch',  volumeGB:210, environment:'prod'}
+] AS row
+MERGE (d:Data {id: row.id})
+SET d += row;
+
+// ---------------------------------------------------------------------
+// 12. Extra incident/ticket showing Data as a first-class impacted/concerned resource
+// ---------------------------------------------------------------------
+MERGE (i:Incident {id:'inc-2026-0006'})
+SET i += {title:'Customer PII exposed in debug logs', description:'Order API debug logging temporarily included raw customer PII in plaintext', severity:'SEV2', status:'resolved', createdAt:datetime('2026-06-20T09:00:00Z'), resolvedAt:datetime('2026-06-20T13:30:00Z')};
+
+MERGE (t:Ticket {id:'tkt-1007'})
+SET t += {title:'Redact PII from application logs', description:'Remove customer PII fields from order-api debug logging; see inc-2026-0006', type:'incident', status:'resolved', priority:'high', createdAt:datetime('2026-06-20T09:10:00Z'), updatedAt:datetime('2026-06-21T10:00:00Z'), dueDate:null};
+
 // =====================================================================
 // RELATIONSHIPS
 // =====================================================================
@@ -417,11 +450,11 @@ MATCH (a:Application {id:'app-orderapi'}), (ctr:Container {id:'ctr-staging-api-0
 MERGE (a)-[:DEPLOYED_ON]->(ctr);
 
 // ---------------------------------------------------------------------
-// Environments: link every Server/Application to the Environment node
-// matching its existing `environment` string property.
+// Environments: link every Server/Application/Data node to the Environment
+// node matching its existing `environment` string property.
 // ---------------------------------------------------------------------
 MATCH (n)
-WHERE (n:Server OR n:Application) AND n.environment IS NOT NULL
+WHERE (n:Server OR n:Application OR n:Data) AND n.environment IS NOT NULL
 MATCH (e:Environment {name: n.environment})
 MERGE (n)-[:IN_ENVIRONMENT]->(e);
 
@@ -435,3 +468,51 @@ UNWIND [
 ] AS pair
 MATCH (a:Application {id: pair[0]}), (s:SLA {id: pair[1]})
 MERGE (a)-[:HAS_SLA]->(s);
+
+// ---------------------------------------------------------------------
+// Data ownership, consumption, classification & physical storage
+// ---------------------------------------------------------------------
+UNWIND [
+  ['app-crm','data-customers'], ['app-orderapi','data-orders'],
+  ['app-authsvc','data-auth-credentials'], ['app-billing','data-billing-ledger'],
+  ['app-webportal','data-web-sessions'], ['app-cloudapi','data-api-logs']
+] AS pair
+MATCH (a:Application {id: pair[0]}), (d:Data {id: pair[1]})
+MERGE (a)-[:OWNS_DATA]->(d);
+
+UNWIND [
+  ['app-webportal','data-orders'], ['app-webportal','data-customers'],
+  ['app-cloudapi','data-customers'], ['app-billing','data-orders'],
+  ['app-orderapi','data-customers']
+] AS pair
+MATCH (a:Application {id: pair[0]}), (d:Data {id: pair[1]})
+MERGE (a)-[:CONSUMES_DATA]->(d);
+
+UNWIND [
+  ['data-customers','cat-pii'],
+  ['data-orders','cat-pii'], ['data-orders','cat-financial'],
+  ['data-auth-credentials','cat-credentials'],
+  ['data-billing-ledger','cat-financial'],
+  ['data-web-sessions','cat-operational'],
+  ['data-api-logs','cat-operational']
+] AS pair
+MATCH (d:Data {id: pair[0]}), (cat:DataCategory {id: pair[1]})
+MERGE (d)-[:CLASSIFIED_AS]->(cat);
+
+UNWIND [
+  ['data-customers','vm-db-01'], ['data-orders','vm-app-01'],
+  ['data-auth-credentials','vm-app-01'], ['data-billing-ledger','vm-cloud-worker-01'],
+  ['data-web-sessions','vm-web-01'], ['data-api-logs','vm-cloud-api-01']
+] AS pair
+MATCH (d:Data {id: pair[0]}), (s:Server {id: pair[1]})
+MERGE (d)-[:STORED_ON]->(s);
+
+// inc-2026-0006 / tkt-1007: Data as a first-class impacted/concerned resource
+MATCH (i:Incident {id:'inc-2026-0006'}), (d:Data {id:'data-customers'})     MERGE (i)-[:IMPACTS]->(d);
+MATCH (i:Incident {id:'inc-2026-0006'}), (a:Application {id:'app-orderapi'}) MERGE (i)-[:IMPACTS]->(a);
+MATCH (i:Incident {id:'inc-2026-0006'}), (p:Person {id:'p-carol'})          MERGE (i)-[:REPORTED_BY]->(p);
+
+MATCH (t:Ticket {id:'tkt-1007'}), (i:Incident {id:'inc-2026-0006'})   MERGE (t)-[:TRACKS]->(i);
+MATCH (t:Ticket {id:'tkt-1007'}), (d:Data {id:'data-customers'})      MERGE (t)-[:CONCERNS]->(d);
+MATCH (t:Ticket {id:'tkt-1007'}), (p:Person {id:'p-bob'})             MERGE (t)-[:ASSIGNED_TO]->(p);
+MATCH (t:Ticket {id:'tkt-1007'}), (p:Person {id:'p-carol'})           MERGE (t)-[:OPENED_BY]->(p);

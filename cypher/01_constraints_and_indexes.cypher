@@ -27,6 +27,9 @@ CREATE CONSTRAINT contract_id_unique      IF NOT EXISTS FOR (n:Contract)    REQU
 CREATE CONSTRAINT environment_id_unique   IF NOT EXISTS FOR (n:Environment) REQUIRE n.id IS UNIQUE;
 CREATE CONSTRAINT environment_name_unique IF NOT EXISTS FOR (n:Environment) REQUIRE n.name IS UNIQUE;
 CREATE CONSTRAINT sla_id_unique           IF NOT EXISTS FOR (n:SLA)         REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT data_id_unique          IF NOT EXISTS FOR (n:Data)        REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT datacategory_id_unique  IF NOT EXISTS FOR (n:DataCategory) REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT datacategory_name_unique IF NOT EXISTS FOR (n:DataCategory) REQUIRE n.name IS UNIQUE;
 
 // Person email should be unique too
 CREATE CONSTRAINT person_email_unique     IF NOT EXISTS FOR (n:Person)      REQUIRE n.email IS UNIQUE;
@@ -54,8 +57,11 @@ CREATE INDEX location_name_idx        IF NOT EXISTS FOR (n:Location)    ON (n.na
 CREATE INDEX changerequest_status_idx IF NOT EXISTS FOR (n:ChangeRequest) ON (n.status);
 CREATE INDEX contract_end_idx         IF NOT EXISTS FOR (n:Contract)    ON (n.endDate);
 CREATE INDEX ipaddress_address_idx    IF NOT EXISTS FOR (n:IPAddress)   ON (n.address);
+CREATE INDEX data_name_idx            IF NOT EXISTS FOR (n:Data)        ON (n.name);
+CREATE INDEX data_type_idx            IF NOT EXISTS FOR (n:Data)        ON (n.type);
+CREATE INDEX datacategory_sensitivity_idx IF NOT EXISTS FOR (n:DataCategory) ON (n.sensitivity);
 
 // Full text index used by the app's search box
 CREATE FULLTEXT INDEX cmdb_fulltext IF NOT EXISTS
-FOR (n:Location|Server|Container|Application|Team|Person|Incident|Ticket|ChangeRequest|Vendor|Contract|Environment|SLA|NetworkInterface|IPAddress)
+FOR (n:Location|Server|Container|Application|Team|Person|Incident|Ticket|ChangeRequest|Vendor|Contract|Environment|SLA|NetworkInterface|IPAddress|Data|DataCategory)
 ON EACH [n.name, n.hostname, n.title, n.id, n.address];

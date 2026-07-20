@@ -67,6 +67,31 @@ body {
   font-size: 0.85rem;
 }
 
+.profile-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.profile-admin {
+  background: #2e7d32;
+  color: #eafaec;
+}
+
+.profile-readonly {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.readonly-note {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
 .toolbar {
   display: flex;
   align-items: flex-start;
@@ -79,8 +104,14 @@ body {
 
 .query-bar {
   display: flex;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.3rem;
   flex: 1;
+}
+
+.query-bar-input {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .query-bar textarea {
@@ -90,8 +121,15 @@ body {
   resize: vertical;
 }
 
+.query-bar-warning {
+  color: var(--danger);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
 .toolbar-actions {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   white-space: nowrap;
 }
@@ -184,6 +222,24 @@ body {
 
 .property-value {
   flex: 1;
+}
+
+.property-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.property-list dt {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.property-list dd {
+  margin: 0;
+  word-break: break-word;
 }
 
 input, select, textarea, button {
