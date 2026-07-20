@@ -216,6 +216,32 @@ export function fetchNeighborhood(elementId, database, limit = 50) {
   return runQuery(cypher, { elementId, limit: neo4j.int(limit) }, database);
 }
 
+/** Distinct neighbor labels one hop from `elementId`, without fetching the
+ * actual nodes - used to populate the dependency graph modal's right-click
+ * "choose what to expand" menu. Relationship types are never chosen
+ * directly; whichever relationships connect to the picked node types are
+ * included automatically. */
+export function fetchNeighborhoodTypes(elementId, database) {
+  const cypher = `MATCH (n) WHERE elementId(n) = $elementId
+    OPTIONAL MATCH (n)-[r]-(m)
+    RETURN DISTINCT labels(m) AS nodeLabels`;
+  return runQuery(cypher, { elementId }, database);
+}
+
+/** Same as fetchNeighborhood, but only follows relationships whose other
+ * endpoint has at least one label in `labels` - the relationship type
+ * itself isn't filtered, it's whatever connects to a matching neighbor.
+ * The WHERE sits directly on the OPTIONAL MATCH (not a separate clause), so
+ * a node with no neighbors matching the filter still comes back on its own
+ * instead of disappearing entirely. */
+export function fetchFilteredNeighborhood({ elementId, labels, limit = 50 }, database) {
+  const cypher = `MATCH (n) WHERE elementId(n) = $elementId
+    OPTIONAL MATCH (n)-[r]-(m)
+    WHERE any(l IN labels(m) WHERE l IN $labels)
+    RETURN n, r, m LIMIT $limit`;
+  return runQuery(cypher, { elementId, labels, limit: neo4j.int(limit) }, database);
+}
+
 /** Node(s) currently connected to `elementId` via one relationship type/
  * direction, plus the relationship's own elementId - used to pre-fill and
  * diff an entity form's relationship pickers on edit. */
