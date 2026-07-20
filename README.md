@@ -2,8 +2,8 @@
 
 A configuration management database modeled as a property graph: locations
 (datacenters/cloud regions), servers (physical/virtual), containers,
-applications, teams/people, and incident/ticket tracking — plus a small
-React app to explore and edit the graph visually with Neo4j NVL.
+applications, teams/people, and incident/ticket tracking — plus a React 
+app to explore and edit the graph visually with Neo4j NVL.
 
 ```
 cmdb/
@@ -311,3 +311,9 @@ Further ideas that still fit this schema without restructuring it:
 - `:DataFlow` edges between `:Data` assets (instead of only `Application`
   -> `Data`) if you need to model ETL/replication pipelines that move data
   between stores independently of the applications that own them.
+
+TODO/Possible roadmap:
+- Add a logo
+- Add new data types (see above)
+- Add export to CSV capability
+- Embed the launch of neo4j backend (or document how to container it)
