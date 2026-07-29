@@ -23,6 +23,10 @@
 //   targetLabels  labels the autocomplete search is restricted to (null = search everything)
 //   cardinality   'one' | 'many'
 //   required      only enforced for cardinality 'one'
+//
+// Category order below is deliberate - it's also NODE_TYPE_CATEGORIES'
+// order (first-occurrence in this array), which drives the sidebar's
+// top-to-bottom category order.
 // =====================================================================
 
 const STATUS_ACTIVE = ['active', 'maintenance', 'decommissioned'];
@@ -183,7 +187,7 @@ export const NODE_TYPES = [
   },
 
   // ------------------------------------------------------------------
-  // Applications & data
+  // Applications & Data
   // ------------------------------------------------------------------
   {
     key: 'application',
@@ -218,6 +222,31 @@ export const NODE_TYPES = [
     ]
   },
   {
+    key: 'dataflow',
+    label: 'Data Flow',
+    pluralLabel: 'Data Flows',
+    category: 'Applications & Data',
+    labels: ['DataFlow'],
+    matchLabel: 'DataFlow',
+    idPrefix: 'flow',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'type', label: 'Type' }, { key: 'schedule', label: 'Schedule' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' },
+      { key: 'type', label: 'Type', options: ['etl', 'replication', 'streaming', 'batch'] },
+      { key: 'schedule', label: 'Schedule' }
+    ],
+    relationships: [
+      { key: 'sourceData', label: 'Source data', relType: 'SOURCE_DATA', direction: 'out', targetLabels: ['Data'], cardinality: 'many', required: true },
+      { key: 'targetData', label: 'Target data', relType: 'TARGET_DATA', direction: 'out', targetLabels: ['Data'], cardinality: 'many', required: true },
+      { key: 'implementedBy', label: 'Implemented by (application)', relType: 'IMPLEMENTS', direction: 'in', targetLabels: ['Application'], cardinality: 'many' }
+    ]
+  },
+  {
     key: 'data',
     label: 'Data Asset',
     pluralLabel: 'Data Assets',
@@ -245,70 +274,9 @@ export const NODE_TYPES = [
       { key: 'storedOn', label: 'Stored on (server)', relType: 'STORED_ON', direction: 'out', targetLabels: ['Server'], cardinality: 'one' }
     ]
   },
-  {
-    key: 'datacategory',
-    label: 'Data Category',
-    pluralLabel: 'Data Categories',
-    category: 'Applications & Data',
-    labels: ['DataCategory'],
-    matchLabel: 'DataCategory',
-    idPrefix: 'cat',
-    sortField: 'name',
-    columns: [
-      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' },
-      { key: 'sensitivity', label: 'Sensitivity' }, { key: 'regulatoryScope', label: 'Regulatory scope' }
-    ],
-    fields: [
-      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'name', label: 'Name', required: true },
-      { key: 'description', label: 'Description', inputType: 'textarea' },
-      { key: 'sensitivity', label: 'Sensitivity', options: ['public', 'internal', 'confidential', 'restricted'] },
-      { key: 'regulatoryScope', label: 'Regulatory scope', options: ['none', 'GDPR', 'PCI-DSS', 'SOX'] }
-    ],
-    relationships: []
-  },
-  {
-    key: 'environment',
-    label: 'Environment',
-    pluralLabel: 'Environments',
-    category: 'Applications & Data',
-    labels: ['Environment'],
-    matchLabel: 'Environment',
-    idPrefix: 'env',
-    sortField: 'name',
-    columns: [{ key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'description', label: 'Description' }],
-    fields: [
-      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'name', label: 'Name', required: true },
-      { key: 'description', label: 'Description', inputType: 'textarea' }
-    ],
-    relationships: []
-  },
-  {
-    key: 'sla',
-    label: 'SLA',
-    pluralLabel: 'SLAs',
-    category: 'Applications & Data',
-    labels: ['SLA'],
-    matchLabel: 'SLA',
-    idPrefix: 'sla',
-    sortField: 'name',
-    columns: [
-      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'uptimeTargetPct', label: 'Uptime target %' },
-      { key: 'responseTimeMinutes', label: 'Response (min)' }, { key: 'resolutionTimeHours', label: 'Resolution (h)' }
-    ],
-    fields: [
-      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'name', label: 'Name', required: true },
-      { key: 'uptimeTargetPct', label: 'Uptime target %', inputType: 'number' },
-      { key: 'responseTimeMinutes', label: 'Response time (min)', inputType: 'number' },
-      { key: 'resolutionTimeHours', label: 'Resolution time (h)', inputType: 'number' }
-    ],
-    relationships: []
-  },
 
   // ------------------------------------------------------------------
-  // Network & assets
+  // Network & Assets
   // ------------------------------------------------------------------
   {
     key: 'networkinterface',
@@ -360,52 +328,150 @@ export const NODE_TYPES = [
     ]
   },
   {
-    key: 'vendor',
-    label: 'Vendor',
-    pluralLabel: 'Vendors',
+    key: 'vlan',
+    label: 'VLAN',
+    pluralLabel: 'VLANs',
     category: 'Network & Assets',
-    labels: ['Vendor'],
-    matchLabel: 'Vendor',
-    idPrefix: 'vnd',
-    sortField: 'name',
+    labels: ['VLAN'],
+    matchLabel: 'VLAN',
+    idPrefix: 'vlan',
+    sortField: 'vlanId',
     columns: [
-      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'supportPhone', label: 'Support phone' },
-      { key: 'supportEmail', label: 'Support email' }, { key: 'website', label: 'Website' }
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'vlanId', label: 'VLAN ID' }
     ],
     fields: [
       { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
       { key: 'name', label: 'Name', required: true },
-      { key: 'supportPhone', label: 'Support phone' },
-      { key: 'supportEmail', label: 'Support email' },
-      { key: 'website', label: 'Website' }
+      { key: 'vlanId', label: 'VLAN ID', inputType: 'number', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' }
+    ],
+    relationships: [
+      { key: 'subnets', label: 'Subnets', relType: 'IN_VLAN', direction: 'in', targetLabels: ['Subnet'], cardinality: 'many' }
+    ]
+  },
+  {
+    key: 'subnet',
+    label: 'Subnet',
+    pluralLabel: 'Subnets',
+    category: 'Network & Assets',
+    labels: ['Subnet'],
+    matchLabel: 'Subnet',
+    idPrefix: 'subnet',
+    sortField: 'cidr',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'cidr', label: 'CIDR' }, { key: 'gateway', label: 'Gateway' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'cidr', label: 'CIDR', required: true },
+      { key: 'gateway', label: 'Gateway' },
+      { key: 'description', label: 'Description', inputType: 'textarea' }
+    ],
+    relationships: [
+      { key: 'inVlan', label: 'VLAN', relType: 'IN_VLAN', direction: 'out', targetLabels: ['VLAN'], cardinality: 'one' }
+    ]
+  },
+
+  // ------------------------------------------------------------------
+  // Monitoring
+  // ------------------------------------------------------------------
+  {
+    key: 'probe',
+    label: 'Supervision Probe',
+    pluralLabel: 'Supervision Probes',
+    category: 'Monitoring',
+    labels: ['Probe'],
+    matchLabel: 'Probe',
+    idPrefix: 'probe',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'checkType', label: 'Check type' },
+      { key: 'status', label: 'Status' }, { key: 'severity', label: 'Alert severity' }, { key: 'enabled', label: 'Enabled' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' },
+      { key: 'checkType', label: 'Check type', options: ['command', 'process', 'port'], required: true },
+      { key: 'command', label: 'Command (checkType=command)' },
+      { key: 'process', label: 'Process name/pattern (checkType=process)' },
+      { key: 'port', label: 'Port (checkType=port)', inputType: 'number' },
+      { key: 'intervalSeconds', label: 'Check interval (s)', inputType: 'number' },
+      { key: 'timeoutSeconds', label: 'Timeout (s)', inputType: 'number' },
+      { key: 'alertCondition', label: 'Alert condition', inputType: 'textarea' },
+      { key: 'alertThreshold', label: 'Alert threshold (consecutive failures)', inputType: 'number' },
+      { key: 'severity', label: 'Alert severity', options: ['SEV1', 'SEV2', 'SEV3', 'SEV4'] },
+      { key: 'status', label: 'Current status', options: ['ok', 'warning', 'critical', 'unknown', 'disabled'] }
+    ],
+    relationships: [
+      { key: 'monitors', label: 'Monitors', relType: 'MONITORS', direction: 'out', targetLabels: ['Virtual', 'Container', 'Application'], cardinality: 'one', required: true }
+    ]
+  },
+
+  // ------------------------------------------------------------------
+  // IT Master Data
+  // ------------------------------------------------------------------
+  {
+    key: 'datacategory',
+    label: 'Data Category',
+    pluralLabel: 'Data Categories',
+    category: 'IT Master Data',
+    labels: ['DataCategory'],
+    matchLabel: 'DataCategory',
+    idPrefix: 'cat',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' },
+      { key: 'sensitivity', label: 'Sensitivity' }, { key: 'regulatoryScope', label: 'Regulatory scope' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' },
+      { key: 'sensitivity', label: 'Sensitivity', options: ['public', 'internal', 'confidential', 'restricted'] },
+      { key: 'regulatoryScope', label: 'Regulatory scope', options: ['none', 'GDPR', 'PCI-DSS', 'SOX'] }
     ],
     relationships: []
   },
   {
-    key: 'contract',
-    label: 'Contract',
-    pluralLabel: 'Contracts',
-    category: 'Network & Assets',
-    labels: ['Contract'],
-    matchLabel: 'Contract',
-    idPrefix: 'ctc',
-    sortField: 'contractNumber',
+    key: 'environment',
+    label: 'Environment',
+    pluralLabel: 'Environments',
+    category: 'IT Master Data',
+    labels: ['Environment'],
+    matchLabel: 'Environment',
+    idPrefix: 'env',
+    sortField: 'name',
+    columns: [{ key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'description', label: 'Description' }],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' }
+    ],
+    relationships: []
+  },
+  {
+    key: 'sla',
+    label: 'SLA',
+    pluralLabel: 'SLAs',
+    category: 'IT Master Data',
+    labels: ['SLA'],
+    matchLabel: 'SLA',
+    idPrefix: 'sla',
+    sortField: 'name',
     columns: [
-      { key: 'id', label: 'ID' }, { key: 'contractNumber', label: 'Contract #' }, { key: 'type', label: 'Type' },
-      { key: 'startDate', label: 'Start' }, { key: 'endDate', label: 'End' }, { key: 'cost', label: 'Cost' }, { key: 'currency', label: 'Currency' }
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'uptimeTargetPct', label: 'Uptime target %' },
+      { key: 'responseTimeMinutes', label: 'Response (min)' }, { key: 'resolutionTimeHours', label: 'Resolution (h)' }
     ],
     fields: [
       { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'contractNumber', label: 'Contract number', required: true },
-      { key: 'type', label: 'Type', options: ['maintenance', 'support', 'lease'] },
-      { key: 'startDate', label: 'Start date', inputType: 'date' },
-      { key: 'endDate', label: 'End date', inputType: 'date' },
-      { key: 'cost', label: 'Cost', inputType: 'number' },
-      { key: 'currency', label: 'Currency' }
+      { key: 'name', label: 'Name', required: true },
+      { key: 'uptimeTargetPct', label: 'Uptime target %', inputType: 'number' },
+      { key: 'responseTimeMinutes', label: 'Response time (min)', inputType: 'number' },
+      { key: 'resolutionTimeHours', label: 'Resolution time (h)', inputType: 'number' }
     ],
-    relationships: [
-      { key: 'providedBy', label: 'Vendor', relType: 'PROVIDED_BY', direction: 'out', targetLabels: ['Vendor'], cardinality: 'one', required: true }
-    ]
+    relationships: []
   },
 
   // ------------------------------------------------------------------
@@ -450,6 +516,102 @@ export const NODE_TYPES = [
     ],
     relationships: [
       { key: 'memberOf', label: 'Team', relType: 'MEMBER_OF', direction: 'out', targetLabels: ['Team'], cardinality: 'one', required: true }
+    ]
+  },
+  {
+    key: 'vendor',
+    label: 'Vendor',
+    pluralLabel: 'Vendors',
+    category: 'Organization',
+    labels: ['Vendor'],
+    matchLabel: 'Vendor',
+    idPrefix: 'vnd',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'supportPhone', label: 'Support phone' },
+      { key: 'supportEmail', label: 'Support email' }, { key: 'website', label: 'Website' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'supportPhone', label: 'Support phone' },
+      { key: 'supportEmail', label: 'Support email' },
+      { key: 'website', label: 'Website' }
+    ],
+    relationships: []
+  },
+  {
+    key: 'contract',
+    label: 'Contract',
+    pluralLabel: 'Contracts',
+    category: 'Organization',
+    labels: ['Contract'],
+    matchLabel: 'Contract',
+    idPrefix: 'ctc',
+    sortField: 'contractNumber',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'contractNumber', label: 'Contract #' }, { key: 'type', label: 'Type' },
+      { key: 'startDate', label: 'Start' }, { key: 'endDate', label: 'End' }, { key: 'cost', label: 'Cost' }, { key: 'currency', label: 'Currency' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'contractNumber', label: 'Contract number', required: true },
+      { key: 'type', label: 'Type', options: ['maintenance', 'support', 'lease'] },
+      { key: 'startDate', label: 'Start date', inputType: 'date' },
+      { key: 'endDate', label: 'End date', inputType: 'date' },
+      { key: 'cost', label: 'Cost', inputType: 'number' },
+      { key: 'currency', label: 'Currency' }
+    ],
+    relationships: [
+      { key: 'providedBy', label: 'Vendor', relType: 'PROVIDED_BY', direction: 'out', targetLabels: ['Vendor'], cardinality: 'one', required: true }
+    ]
+  },
+
+  // ------------------------------------------------------------------
+  // Finance (chargeback / showback)
+  // ------------------------------------------------------------------
+  {
+    key: 'costcenter',
+    label: 'Cost Center',
+    pluralLabel: 'Cost Centers',
+    category: 'Finance',
+    labels: ['CostCenter'],
+    matchLabel: 'CostCenter',
+    idPrefix: 'cc',
+    sortField: 'name',
+    columns: [{ key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'code', label: 'Code' }],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'code', label: 'Code', required: true }
+    ],
+    relationships: [
+      { key: 'hasBudget', label: 'Budget', relType: 'HAS_BUDGET', direction: 'out', targetLabels: ['Budget'], cardinality: 'one' },
+      { key: 'chargedApplications', label: 'Charged applications', relType: 'CHARGED_TO', direction: 'in', targetLabels: ['Application'], cardinality: 'many' }
+    ]
+  },
+  {
+    key: 'budget',
+    label: 'Budget',
+    pluralLabel: 'Budgets',
+    category: 'Finance',
+    labels: ['Budget'],
+    matchLabel: 'Budget',
+    idPrefix: 'budget',
+    sortField: 'fiscalYear',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'amount', label: 'Amount' },
+      { key: 'currency', label: 'Currency' }, { key: 'fiscalYear', label: 'Fiscal year' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'amount', label: 'Amount', inputType: 'number', required: true },
+      { key: 'currency', label: 'Currency' },
+      { key: 'fiscalYear', label: 'Fiscal year', inputType: 'number' }
+    ],
+    relationships: [
+      { key: 'costCenter', label: 'Cost center', relType: 'HAS_BUDGET', direction: 'in', targetLabels: ['CostCenter'], cardinality: 'one', required: true }
     ]
   },
 
@@ -547,59 +709,30 @@ export const NODE_TYPES = [
       { key: 'approvals', label: 'Approval steps', relType: 'HAS_APPROVAL', direction: 'out', targetLabels: ['Approval'], cardinality: 'many' }
     ]
   },
-
-  // ------------------------------------------------------------------
-  // Network & assets (IPAM v2)
-  // ------------------------------------------------------------------
   {
-    key: 'vlan',
-    label: 'VLAN',
-    pluralLabel: 'VLANs',
-    category: 'Network & Assets',
-    labels: ['VLAN'],
-    matchLabel: 'VLAN',
-    idPrefix: 'vlan',
-    sortField: 'vlanId',
+    key: 'applicationversion',
+    label: 'Application Version',
+    pluralLabel: 'Application Versions',
+    category: 'ITSM',
+    labels: ['ApplicationVersion'],
+    matchLabel: 'ApplicationVersion',
+    idPrefix: 'appver',
+    sortField: 'validFrom',
     columns: [
-      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'vlanId', label: 'VLAN ID' }
+      { key: 'id', label: 'ID' }, { key: 'version', label: 'Version' },
+      { key: 'validFrom', label: 'Valid from' }, { key: 'validTo', label: 'Valid to' }
     ],
     fields: [
       { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'name', label: 'Name', required: true },
-      { key: 'vlanId', label: 'VLAN ID', inputType: 'number', required: true },
-      { key: 'description', label: 'Description', inputType: 'textarea' }
+      { key: 'version', label: 'Version', required: true },
+      { key: 'validFrom', label: 'Valid from', inputType: 'date' },
+      { key: 'validTo', label: 'Valid to', inputType: 'date' },
+      { key: 'changelog', label: 'Changelog', inputType: 'textarea' }
     ],
     relationships: [
-      { key: 'subnets', label: 'Subnets', relType: 'IN_VLAN', direction: 'in', targetLabels: ['Subnet'], cardinality: 'many' }
+      { key: 'application', label: 'Application', relType: 'HAD_VERSION', direction: 'in', targetLabels: ['Application'], cardinality: 'one', required: true }
     ]
   },
-  {
-    key: 'subnet',
-    label: 'Subnet',
-    pluralLabel: 'Subnets',
-    category: 'Network & Assets',
-    labels: ['Subnet'],
-    matchLabel: 'Subnet',
-    idPrefix: 'subnet',
-    sortField: 'cidr',
-    columns: [
-      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'cidr', label: 'CIDR' }, { key: 'gateway', label: 'Gateway' }
-    ],
-    fields: [
-      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'name', label: 'Name', required: true },
-      { key: 'cidr', label: 'CIDR', required: true },
-      { key: 'gateway', label: 'Gateway' },
-      { key: 'description', label: 'Description', inputType: 'textarea' }
-    ],
-    relationships: [
-      { key: 'inVlan', label: 'VLAN', relType: 'IN_VLAN', direction: 'out', targetLabels: ['VLAN'], cardinality: 'one' }
-    ]
-  },
-
-  // ------------------------------------------------------------------
-  // Change approvals
-  // ------------------------------------------------------------------
   {
     key: 'approval',
     label: 'Approval',
@@ -622,143 +755,6 @@ export const NODE_TYPES = [
     relationships: [
       { key: 'partOfChange', label: 'Change request', relType: 'HAS_APPROVAL', direction: 'in', targetLabels: ['ChangeRequest'], cardinality: 'one', required: true },
       { key: 'decidedBy', label: 'Decided by', relType: 'DECIDED_BY', direction: 'out', targetLabels: ['Person'], cardinality: 'one' }
-    ]
-  },
-
-  // ------------------------------------------------------------------
-  // Finance (chargeback / showback)
-  // ------------------------------------------------------------------
-  {
-    key: 'costcenter',
-    label: 'Cost Center',
-    pluralLabel: 'Cost Centers',
-    category: 'Finance',
-    labels: ['CostCenter'],
-    matchLabel: 'CostCenter',
-    idPrefix: 'cc',
-    sortField: 'name',
-    columns: [{ key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'code', label: 'Code' }],
-    fields: [
-      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'name', label: 'Name', required: true },
-      { key: 'code', label: 'Code', required: true }
-    ],
-    relationships: [
-      { key: 'hasBudget', label: 'Budget', relType: 'HAS_BUDGET', direction: 'out', targetLabels: ['Budget'], cardinality: 'one' },
-      { key: 'chargedApplications', label: 'Charged applications', relType: 'CHARGED_TO', direction: 'in', targetLabels: ['Application'], cardinality: 'many' }
-    ]
-  },
-  {
-    key: 'budget',
-    label: 'Budget',
-    pluralLabel: 'Budgets',
-    category: 'Finance',
-    labels: ['Budget'],
-    matchLabel: 'Budget',
-    idPrefix: 'budget',
-    sortField: 'fiscalYear',
-    columns: [
-      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'amount', label: 'Amount' },
-      { key: 'currency', label: 'Currency' }, { key: 'fiscalYear', label: 'Fiscal year' }
-    ],
-    fields: [
-      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'name', label: 'Name', required: true },
-      { key: 'amount', label: 'Amount', inputType: 'number', required: true },
-      { key: 'currency', label: 'Currency' },
-      { key: 'fiscalYear', label: 'Fiscal year', inputType: 'number' }
-    ],
-    relationships: [
-      { key: 'costCenter', label: 'Cost center', relType: 'HAS_BUDGET', direction: 'in', targetLabels: ['CostCenter'], cardinality: 'one', required: true }
-    ]
-  },
-
-  // ------------------------------------------------------------------
-  // Application versions & data flows
-  // ------------------------------------------------------------------
-  {
-    key: 'applicationversion',
-    label: 'Application Version',
-    pluralLabel: 'Application Versions',
-    category: 'Applications & Data',
-    labels: ['ApplicationVersion'],
-    matchLabel: 'ApplicationVersion',
-    idPrefix: 'appver',
-    sortField: 'validFrom',
-    columns: [
-      { key: 'id', label: 'ID' }, { key: 'version', label: 'Version' },
-      { key: 'validFrom', label: 'Valid from' }, { key: 'validTo', label: 'Valid to' }
-    ],
-    fields: [
-      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'version', label: 'Version', required: true },
-      { key: 'validFrom', label: 'Valid from', inputType: 'date' },
-      { key: 'validTo', label: 'Valid to', inputType: 'date' },
-      { key: 'changelog', label: 'Changelog', inputType: 'textarea' }
-    ],
-    relationships: [
-      { key: 'application', label: 'Application', relType: 'HAD_VERSION', direction: 'in', targetLabels: ['Application'], cardinality: 'one', required: true }
-    ]
-  },
-  {
-    key: 'dataflow',
-    label: 'Data Flow',
-    pluralLabel: 'Data Flows',
-    category: 'Applications & Data',
-    labels: ['DataFlow'],
-    matchLabel: 'DataFlow',
-    idPrefix: 'flow',
-    sortField: 'name',
-    columns: [
-      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'type', label: 'Type' }, { key: 'schedule', label: 'Schedule' }
-    ],
-    fields: [
-      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'name', label: 'Name', required: true },
-      { key: 'description', label: 'Description', inputType: 'textarea' },
-      { key: 'type', label: 'Type', options: ['etl', 'replication', 'streaming', 'batch'] },
-      { key: 'schedule', label: 'Schedule' }
-    ],
-    relationships: [
-      { key: 'sourceData', label: 'Source data', relType: 'SOURCE_DATA', direction: 'out', targetLabels: ['Data'], cardinality: 'many', required: true },
-      { key: 'targetData', label: 'Target data', relType: 'TARGET_DATA', direction: 'out', targetLabels: ['Data'], cardinality: 'many', required: true },
-      { key: 'implementedBy', label: 'Implemented by (application)', relType: 'IMPLEMENTS', direction: 'in', targetLabels: ['Application'], cardinality: 'many' }
-    ]
-  },
-
-  // ------------------------------------------------------------------
-  // Monitoring
-  // ------------------------------------------------------------------
-  {
-    key: 'probe',
-    label: 'Supervision Probe',
-    pluralLabel: 'Supervision Probes',
-    category: 'Monitoring',
-    labels: ['Probe'],
-    matchLabel: 'Probe',
-    idPrefix: 'probe',
-    sortField: 'name',
-    columns: [
-      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'checkType', label: 'Check type' },
-      { key: 'status', label: 'Status' }, { key: 'severity', label: 'Alert severity' }, { key: 'enabled', label: 'Enabled' }
-    ],
-    fields: [
-      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'name', label: 'Name', required: true },
-      { key: 'description', label: 'Description', inputType: 'textarea' },
-      { key: 'checkType', label: 'Check type', options: ['command', 'process', 'port'], required: true },
-      { key: 'command', label: 'Command (checkType=command)' },
-      { key: 'process', label: 'Process name/pattern (checkType=process)' },
-      { key: 'port', label: 'Port (checkType=port)', inputType: 'number' },
-      { key: 'intervalSeconds', label: 'Check interval (s)', inputType: 'number' },
-      { key: 'timeoutSeconds', label: 'Timeout (s)', inputType: 'number' },
-      { key: 'alertCondition', label: 'Alert condition', inputType: 'textarea' },
-      { key: 'alertThreshold', label: 'Alert threshold (consecutive failures)', inputType: 'number' },
-      { key: 'severity', label: 'Alert severity', options: ['SEV1', 'SEV2', 'SEV3', 'SEV4'] },
-      { key: 'status', label: 'Current status', options: ['ok', 'warning', 'critical', 'unknown', 'disabled'] }
-    ],
-    relationships: [
-      { key: 'monitors', label: 'Monitors', relType: 'MONITORS', direction: 'out', targetLabels: ['Virtual', 'Container', 'Application'], cardinality: 'one', required: true }
     ]
   }
 ];

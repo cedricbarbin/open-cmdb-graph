@@ -130,9 +130,11 @@ export default function EntityListScreen() {
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
           />
-          <button type="button" onClick={handleExportCsv} disabled={filteredRows.length === 0}>
-            Export CSV
-          </button>
+          {canWrite && (
+            <button type="button" onClick={handleExportCsv} disabled={filteredRows.length === 0}>
+              Export CSV
+            </button>
+          )}
           <button type="button" onClick={handleDownloadTemplate}>
             Get CSV template
           </button>
@@ -199,7 +201,7 @@ export default function EntityListScreen() {
                       Graph
                     </button>
                     <button type="button" onClick={() => setFormModal({ mode: 'edit', initialNode: row })}>
-                      Edit
+                      {canWrite ? 'Edit' : 'View'}
                     </button>
                     {canWrite && (
                       <button type="button" className="danger" onClick={() => handleDelete(row)}>

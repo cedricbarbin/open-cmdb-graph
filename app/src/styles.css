@@ -103,6 +103,10 @@ body {
   font-style: italic;
 }
 
+.app-loading {
+  padding: 1rem 1.25rem;
+}
+
 .toolbar {
   display: flex;
   align-items: flex-start;

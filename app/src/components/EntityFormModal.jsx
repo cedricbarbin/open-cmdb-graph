@@ -292,7 +292,7 @@ export default function EntityFormModal({ typeDef, mode, initialNode, onClose, o
         <div className="modal-actions">
           {!readOnly && <button type="button" onClick={onClose}>Cancel</button>}
           <button type="submit" disabled={saving || loadingRelationships}>
-            {readOnly ? 'View' : (saving ? 'Saving…' : 'Save')}
+            {readOnly ? 'Close' : (saving ? 'Saving…' : 'Save')}
           </button>
         </div>
       </form>

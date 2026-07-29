@@ -30,10 +30,10 @@ export function ConnectionProvider({ children }) {
   // 'admin') - see getCurrentUserProfile in neo4j.js for how it's detected.
   const isAdmin = profile?.profile === 'admin';
   const canWrite = !!profile && profile.profile !== 'readonly';
-  // Everything in the sidebar's "Admin" group is admin-only except Menu
-  // Settings (which has no gate at all - it's a display preference, not a
-  // permission).
-  const canAccessGraphExplorer = isAdmin;
+  // Everything in the sidebar's "Admin" group is admin-only, except Graph
+  // Explorer (also open to superuser) and Menu Settings (open to everyone -
+  // it's a display preference, not a permission).
+  const canAccessGraphExplorer = isAdmin || profile?.profile === 'superuser';
   const canManageUsers = isAdmin;
   const canAccessBackupRestore = isAdmin;
   const database = connection?.database;

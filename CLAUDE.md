@@ -61,24 +61,21 @@ USER` (against the `system` db) to infer one of 4 UI profiles — `readonly`
 via `getCurrentUserProfile`/`deriveCmdbProfile` in `app/src/lib/neo4j.js`.
 `ConnectionContext.jsx` turns that into four booleans consumed everywhere
 else: `canWrite` (everything above `readonly` — gates business-screen
-create/edit/delete) and three `admin`-only ones — `canAccessGraphExplorer`,
-`canManageUsers`, `canAccessBackupRestore` — that all currently resolve to
-the same `profile === 'admin'` check (kept as separate named booleans, not
-one shared flag, since they gate conceptually distinct screens and could
-diverge again later). Practically this means `operator` and `superuser`
-render an identical UI right now: both get `canWrite` and nothing else,
-since the sidebar's "Admin" group (Graph Explorer/Manage Users/Backup &
-Restore) is admin-only — `superuser`'s extra Neo4j privileges
-(`NAME MANAGEMENT`/`INDEX MANAGEMENT`/`CONSTRAINT MANAGEMENT`, still granted
-by `cypher/00_security_setup.cypher`) aren't exercised through any menu
-that role can reach anymore. All four booleans only control what the UI
-*offers* (hiding menus/buttons, redirecting away from `/graph`, `/users`,
-or `/backup-restore`); detection deliberately fails open to `admin` on
-ambiguous/undetectable roles, because the actual boundary is Neo4j's
-`GRANT`/`DENY` privileges (`cypher/00_security_setup.cypher`), which reject
-unauthorized writes or user-management calls regardless of what the client
-attempted. Community Edition has no custom roles, so every session
-there resolves to `admin`.
+create/edit/delete), `canAccessGraphExplorer` (`superuser` and `admin` —
+matches the role's DB-level schema-evolution privileges, `NAME MANAGEMENT`/
+`INDEX MANAGEMENT`/`CONSTRAINT MANAGEMENT`, still granted by
+`cypher/00_security_setup.cypher`, which is what Graph Explorer's "+ Node"/
+"+ Relationship" forms actually need), and two `admin`-only ones —
+`canManageUsers`, `canAccessBackupRestore`. `operator` therefore gets
+`canWrite` and nothing from the "Admin" sidebar group; `superuser` gets
+`canWrite` plus Graph Explorer; `admin` gets everything. All four booleans
+only control what the UI *offers* (hiding menus/buttons, redirecting away
+from `/graph`, `/users`, or `/backup-restore`); detection deliberately
+fails open to `admin` on ambiguous/undetectable roles, because the actual
+boundary is Neo4j's `GRANT`/`DENY` privileges
+(`cypher/00_security_setup.cypher`), which reject unauthorized writes or
+user-management calls regardless of what the client attempted. Community
+Edition has no custom roles, so every session there resolves to `admin`.
 
 **First-login / CHANGE REQUIRED password change**: `ConnectionContext.jsx`'s
 `connect()` treats Neo4j's `Neo.ClientError.Security.CredentialsExpired`
@@ -128,11 +125,12 @@ into a view-only one, rather than the caller rendering a different
 component: every `ScalarField` gets `disabled`, relationship chips drop
 their remove button and the `NodeAutocomplete` picker doesn't render, the
 title switches to "View `<Type>`", and Cancel disappears in favor of a
-single Save→"View" submit button whose handler short-circuits to `onClose()`
-before touching `buildProperties`/`createNode`/`updateNodeProperties` at
-all. `EntityListScreen.jsx` always renders the Edit button (unlike Delete,
-which stays `canWrite`-gated) and passes `readOnly={!canWrite}` — so a
-read-only profile can still open and inspect a node's full detail/relationships
+single Save→"Close" submit button whose handler short-circuits to
+`onClose()` before touching `buildProperties`/`createNode`/`updateNodeProperties` at
+all. `EntityListScreen.jsx` always renders that row button (unlike Delete,
+which stays `canWrite`-gated), labeled "Edit"/"View" based on `canWrite` to
+match, and passes `readOnly={!canWrite}` — so a read-only profile can still
+open and inspect a node's full detail/relationships
 through the familiar edit form, just without any way to change it.
 
 **CSV import/export is layered so single-type and bulk paths share code**:
@@ -159,9 +157,24 @@ client-side only (`#/graph`, `#/type/:typeKey`, `#/users`, `#/menu-settings`,
 `#/backup-restore`), so the app works from a static file server with no
 server-side rewrite rules. `App.jsx` redirects `/graph`, `/users`, and
 `/backup-restore` away to the first business screen for profiles that can't
-reach them (all three require `admin`), so gating isn't just a hidden
+reach them (`/graph` requires `superuser` or `admin`; `/users` and
+`/backup-restore` require `admin`), so gating isn't just a hidden
 `Sidebar.jsx` link; `/menu-settings` is the one unguarded route — every
 profile can reach it, since it's a display preference, not a permission.
+Every page in `App.jsx`'s route table is `React.lazy()`-imported (wrapped
+in one `<Suspense>` around `<Routes>`), not statically imported — this is
+what keeps the entry chunk small (~40kB vs. a single ~2.7MB bundle
+everyone downloaded on first load, back when every page/dependency was
+eager). `lib/backup.js` dynamically `import()`s `jszip` itself too, for
+the same reason. **New pages should follow this pattern** (`lazy(() =>
+import('./pages/Whatever.jsx'))`), especially any that pull in a large
+dependency. `vite.config.js`'s `manualChunks` additionally splits
+react/react-dom/react-router-dom and `neo4j-driver` into their own
+vendor chunks (cached independently of app code, which changes far more
+often); `@neo4j-nvl` and `jszip` don't need a manual entry since they're
+only ever reached through the dynamic imports above and Rollup already
+isolates them into their own chunks (`GraphView-*.js`, `jszip.min-*.js`)
+for that reason alone.
 
 **Graph Explorer vs. business screens**: `GraphExplorerPage.jsx` is free-form
 — preset/typed Cypher queries rendered on an NVL canvas, with an Inspector
@@ -172,10 +185,10 @@ per-type business screens are the structured, registry-driven counterpart
 `app/src/lib/neo4j.js`. `Sidebar.jsx` renders business-screen categories
 first, then one more category, "Admin", styled identically (same
 `.sidebar-group`/`<h4>` markup as a `NODE_TYPE_CATEGORIES` entry, not
-visually called out) holding Graph Explorer, Manage Users, and Backup &
-Restore (each only rendered when its matching `admin`-only boolean is
-true), plus Menu Settings (always rendered) — see section 3/4 in the
-README for why.
+visually called out) holding Graph Explorer (rendered for `superuser` and
+`admin`), Manage Users and Backup & Restore (rendered for `admin` only),
+plus Menu Settings (always rendered) — see section 3/4 in the README for
+why.
 
 **`DetailGraphModal.jsx`** implements outward graph-walking from a business
 screen row (1-hop neighborhood, then merge in more on each node click) via

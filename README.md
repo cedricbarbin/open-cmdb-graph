@@ -194,15 +194,12 @@ cypher-shell -a neo4j://localhost:7687 -u neo4j -p <password> -d system -f cyphe
 |---|---|---|---|
 | Read-only | `cmdb_readonly` | `cmdb_viewer` | Browse the graph and business screens, run read queries. No write controls anywhere, and no access to the sidebar's **Admin** group. |
 | Operator | `cmdb_operator` | `cmdb_operator` | Everything read-only can, plus create/update/delete nodes and relationships from the **business screens**. Still no access to the **Admin** group. |
-| Superuser | `cmdb_superuser` | `cmdb_superuser` | Same app UI as operator — this app's **Admin** group (Graph Explorer, Manage Users, Backup & Restore) is admin-only, not superuser-and-up. The role still carries the DB-level schema-evolution privileges (`NAME MANAGEMENT`/`INDEX MANAGEMENT`/`CONSTRAINT MANAGEMENT`) for use outside this app (e.g. `cypher-shell`), they're just not exposed through any menu a superuser can reach. |
-| Admin | `cmdb_admin` | `cmdb_admin` | Everything superuser can, plus the entire **Admin** sidebar group: **Graph Explorer** (free-form Cypher, canvas Inspector, "+ Node"/"+ Relationship"), **Manage Users**, and **Backup & Restore**. **Menu Settings** is the one item in that group every profile gets, since it's a display preference, not a permission. |
+| Superuser | `cmdb_superuser` | `cmdb_superuser` | Everything operator can, plus **Graph Explorer** (free-form Cypher, canvas Inspector, "+ Node"/"+ Relationship" — which can introduce new labels/relationship types on the fly, matching the role's DB-level schema-evolution privileges, `NAME MANAGEMENT`/`INDEX MANAGEMENT`/`CONSTRAINT MANAGEMENT`). Still no **Manage Users** or **Backup & Restore**. |
+| Admin | `cmdb_admin` | `cmdb_admin` | Everything superuser can, plus the rest of the **Admin** sidebar group: **Manage Users** and **Backup & Restore**. **Menu Settings** is the one item in that group every profile gets, since it's a display preference, not a permission. |
 
 Each tier is a superset of the one before it — Neo4j privileges are additive
 across a user's roles, so a user holding a higher tier's role automatically
-gets everything the lower tiers grant too. Note that superuser's extra
-Neo4j privileges and operator's are therefore invisible in the app itself
-right now (both land on identical business-screen-only UI); they only
-matter if that role is also used directly against Neo4j outside this app.
+gets everything the lower tiers grant too.
 
 All four example users are created with `CHANGE REQUIRED`, so change their
 demo passwords on first login. Only `cmdb_admin` carries DBMS-level
@@ -229,8 +226,8 @@ to a profile via `deriveCmdbProfile`/`getCurrentUserProfile` in
 `app/src/lib/neo4j.js`, and shows a badge next to the connection status
 (e.g. `alice · Superuser` or `bob · Read-only`). Below `readonly`, the app
 hides write controls (the *"+ New"*/*Edit*/*Delete* buttons on business
-screens); below `admin`, it hides the entire **Admin** sidebar group —
-Graph Explorer, Manage Users, and Backup & Restore — and redirects away
+screens); below `superuser`, it hides **Graph Explorer**; below `admin`, it
+also hides **Manage Users** and **Backup & Restore** — and redirects away
 from `/graph`, `/users`, and `/backup-restore` if any of them is navigated
 to directly. None of that is what actually stops a write or a
 user-management call — the `GRANT`/`REVOKE` privileges in
@@ -293,18 +290,19 @@ view of the data), grouped by category same as the data model tables above,
 plus one more category at the very end, **Admin**, holding **Graph
 Explorer** (free-form querying/visualization), **Manage Users**, **Menu
 Settings**, and **Backup & Restore** — styled and grouped exactly like any
-other sidebar category, not called out as special. Everything in that group
-is admin-only except Menu Settings, which every profile gets since it's a
-display preference rather than a permission. Routing is
+other sidebar category, not called out as special. Manage Users and Backup
+& Restore are admin-only; Graph Explorer is superuser-and-admin; Menu
+Settings has no gate at all, since it's a display preference rather than a
+permission. Routing is
 client-side only (`HashRouter` — URLs look like `#/type/application`), so it
 works from a static file server with no rewrite rules.
 
 ### Graph Explorer
 
-Admin only — hidden from the sidebar (and its route redirects away if
-visited directly) for every other profile, see section 3. Since only admins
-ever reach it, every control below is always fully enabled for whoever's
-looking at it:
+Superuser and admin — hidden from the sidebar (and its route redirects away
+if visited directly) for read-only and operator, see section 3. Every
+profile that can reach it also has `canWrite`, so every control below is
+always fully enabled for whoever's looking at it:
 
 - **Query bar**: run any of the preset Cypher queries (topology views,
   dependency graphs, open incidents, ticket boards…) or type your own
@@ -337,8 +335,9 @@ screen.
 
 - **List + search**: a table of that type's nodes (columns from the
   registry), with a client-side filter box across all visible columns.
-- **Export CSV**: exports the currently filtered rows using the same column
-  set as the table (display labels as headers).
+- **Export CSV** (operator, superuser, and admin — hidden for read-only):
+  exports the currently filtered rows using the same column set as the
+  table (display labels as headers).
 - **Get CSV template**: downloads a header-only CSV listing every one of the
   type's *fields* (not just the table's display columns) using their raw
   property keys, e.g. `ipAddress` rather than "IP address" - fill it in and
@@ -370,15 +369,16 @@ screen.
   show one picker; multi-valued ones (e.g. "depends on") show existing picks
   as removable chips plus a picker to add more. Saving diffs the selection
   against what was there before and only creates/deletes the relationships
-  that actually changed. For a **read-only** profile, the same Edit button
-  opens the same modal in view mode instead of being hidden: every field and
-  relationship picker is disabled (chips show with no remove button, no
-  autocomplete search box), the title reads "View `<Type>`" instead of
-  "Edit `<Type>`", and the Save button is replaced by a single **View**
-  button that just closes the modal — there's no Cancel next to it, since
-  nothing was ever editable to cancel. `EntityFormModal.jsx`'s `readOnly`
-  prop drives this; the write itself is still blocked server-side by Neo4j
-  regardless (see section 3), this only changes what the modal *offers*.
+  that actually changed. For a **read-only** profile, the row action itself
+  is relabeled **View** (instead of Edit, and instead of being hidden) and
+  opens the same modal in view mode: every field and relationship picker is
+  disabled (chips show with no remove button, no autocomplete search box),
+  the title reads "View `<Type>`" instead of "Edit `<Type>`", and the Save
+  button is replaced by a single **Close** button — there's no Cancel next
+  to it, since nothing was ever editable to cancel. `EntityFormModal.jsx`'s
+  `readOnly` prop drives the modal side of this; the write itself is still
+  blocked server-side by Neo4j regardless (see section 3), this only
+  changes what the UI *offers*.
 - **Delete** (operator, superuser, and admin): detaches and deletes the
   node, with a confirm prompt.
 - **Graph** (every row, every profile): opens a modal with that node's
@@ -410,9 +410,10 @@ by what Neo4j will let the account do.
 ### Backup & Restore
 
 Admin only — hidden from the sidebar (and its route redirects away if
-visited directly) for every other profile, same as Graph Explorer and
-Manage Users. Same checkbox-per-type picker as Menu Settings, but for bulk
-data movement instead of menu display:
+visited directly) for every other profile, same as Manage Users (Graph
+Explorer is the one Admin-group item superuser gets too). Same
+checkbox-per-type picker as Menu Settings, but for bulk data movement
+instead of menu display:
 
 - **Export ZIP**: for the selected types, bundles one `<type>.csv` per type
   (every field, keyed headers — the same machine-readable format

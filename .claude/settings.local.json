@@ -31,7 +31,8 @@
       "Bash(grep -n \"cookbook section P\\\\b\\\\|\\\\`P\\\\.\\\\`\" README.md CLAUDE.md)",
       "Bash(node *)",
       "Bash(npm audit *)",
-      "Bash(grep *)"
+      "Bash(grep *)",
+      "Bash(awk '{print $5, $9}')"
     ]
   },
   "hooks": {

@@ -1,4 +1,3 @@
-import JSZip from 'jszip';
 import { getNodeType } from './nodeTypes.js';
 import { fetchNodesByLabel, fetchRelationshipsBetweenLabels } from './neo4j.js';
 import { toPlainProperties } from './graphModel.js';
@@ -18,6 +17,7 @@ const EXPORT_ROW_LIMIT = 200000;
  * relationships.csv covering edges directly between the selected types,
  * and a manifest.json for traceability. Returns a Blob ready to download. */
 export async function buildBackupZip({ typeKeys, database }) {
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   const typeDefs = typeKeys.map((key) => getNodeType(key)).filter(Boolean);
 
@@ -54,6 +54,7 @@ export async function buildBackupZip({ typeKeys, database }) {
  * or an entry for a type this app no longer knows) are silently ignored
  * rather than failing the whole restore. */
 export async function restoreBackupZip({ file, database }) {
+  const { default: JSZip } = await import('jszip');
   const zip = await JSZip.loadAsync(file);
   const results = { types: [], relationships: null };
 
