@@ -20,7 +20,7 @@ import { recordsToGraph } from '../lib/graphModel.js';
 const DEFAULT_QUERY = 'MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 150';
 
 export default function GraphExplorerPage() {
-  const { database, isAdmin, knownLabels, knownTypes, refreshSchema } = useConnection();
+  const { database, canWrite, knownLabels, knownTypes, refreshSchema } = useConnection();
 
   const [graph, setGraph] = useState({ nodes: [], relationships: [] });
   const [selection, setSelection] = useState(null); // { kind: 'node'|'relationship', data }
@@ -77,14 +77,14 @@ export default function GraphExplorerPage() {
     setGraph(recordsToGraph(records));
   }
 
-  function requireAdmin() {
-    if (!isAdmin) {
+  function requireWriteAccess() {
+    if (!canWrite) {
       throw new Error('Read-only profile: this account cannot make changes.');
     }
   }
 
   async function handleCreateNode({ labels, properties }) {
-    requireAdmin();
+    requireWriteAccess();
     await createNode({ labels, properties }, database);
     setModal(null);
     await withBusy(refresh);
@@ -92,7 +92,7 @@ export default function GraphExplorerPage() {
   }
 
   async function handleCreateRelationship(payload) {
-    requireAdmin();
+    requireWriteAccess();
     await createRelationship(payload, database);
     setModal(null);
     await withBusy(refresh);
@@ -101,7 +101,7 @@ export default function GraphExplorerPage() {
 
   function handleUpdateNode(elementId, properties) {
     withBusy(async () => {
-      requireAdmin();
+      requireWriteAccess();
       await updateNodeProperties({ elementId, properties }, database);
       await refresh();
       setSelection(null);
@@ -110,7 +110,7 @@ export default function GraphExplorerPage() {
 
   function handleAddLabel(elementId, label) {
     withBusy(async () => {
-      requireAdmin();
+      requireWriteAccess();
       await addLabel({ elementId, label }, database);
       await refresh();
       setSelection(null);
@@ -120,7 +120,7 @@ export default function GraphExplorerPage() {
 
   function handleDeleteNode(elementId) {
     withBusy(async () => {
-      requireAdmin();
+      requireWriteAccess();
       await deleteNode({ elementId }, database);
       await refresh();
       setSelection(null);
@@ -129,7 +129,7 @@ export default function GraphExplorerPage() {
 
   function handleUpdateRelationship(elementId, properties) {
     withBusy(async () => {
-      requireAdmin();
+      requireWriteAccess();
       await updateRelationshipProperties({ elementId, properties }, database);
       await refresh();
       setSelection(null);
@@ -138,7 +138,7 @@ export default function GraphExplorerPage() {
 
   function handleDeleteRelationship(elementId) {
     withBusy(async () => {
-      requireAdmin();
+      requireWriteAccess();
       await deleteRelationship({ elementId }, database);
       await refresh();
       setSelection(null);
@@ -148,15 +148,15 @@ export default function GraphExplorerPage() {
   return (
     <div className="page graph-explorer-page">
       <div className="toolbar">
-        <QueryBar onRun={runAndRender} running={running} readOnly={!isAdmin} />
+        <QueryBar onRun={runAndRender} running={running} readOnly={!canWrite} />
         <div className="toolbar-actions">
-          {isAdmin ? (
+          {canWrite ? (
             <>
               <button type="button" onClick={() => setModal('addNode')}>+ Node</button>
               <button type="button" onClick={() => setModal('addRelationship')}>+ Relationship</button>
             </>
           ) : (
-            <span className="readonly-note">Read-only profile — sign in as admin to add or edit data.</span>
+            <span className="readonly-note">Read-only profile — sign in with a superuser or admin account to add or edit data.</span>
           )}
         </div>
       </div>
@@ -172,7 +172,7 @@ export default function GraphExplorerPage() {
         <Inspector
           selection={selection}
           busy={busy}
-          readOnly={!isAdmin}
+          readOnly={!canWrite}
           onUpdateNode={handleUpdateNode}
           onAddLabel={handleAddLabel}
           onDeleteNode={handleDeleteNode}
@@ -182,7 +182,7 @@ export default function GraphExplorerPage() {
         />
       </div>
 
-      {modal === 'addNode' && isAdmin && (
+      {modal === 'addNode' && canWrite && (
         <AddNodeModal
           knownLabels={knownLabels}
           busy={busy}
@@ -190,7 +190,7 @@ export default function GraphExplorerPage() {
           onCreate={handleCreateNode}
         />
       )}
-      {modal === 'addRelationship' && isAdmin && (
+      {modal === 'addRelationship' && canWrite && (
         <AddRelationshipModal
           nodes={graph.nodes}
           knownTypes={knownTypes}

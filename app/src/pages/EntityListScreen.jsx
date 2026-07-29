@@ -1,12 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { getNodeType } from '../lib/nodeTypes.js';
 import { useConnection } from '../lib/ConnectionContext.jsx';
 import { fetchNodesByLabel, deleteNode } from '../lib/neo4j.js';
 import { toPlainProperties, captionFor } from '../lib/graphModel.js';
-import { toCsv, downloadCsv } from '../lib/csv.js';
+import { toCsv, toCsvTemplate, downloadCsv } from '../lib/csv.js';
+import { importNodesFromCsvText } from '../lib/csvImport.js';
 import EntityFormModal from '../components/EntityFormModal.jsx';
 import DetailGraphModal from '../components/DetailGraphModal.jsx';
+
+const MAX_SHOWN_IMPORT_ERRORS = 10;
 
 function formatCell(value) {
   if (value === null || value === undefined) return '';
@@ -17,7 +20,7 @@ function formatCell(value) {
 export default function EntityListScreen() {
   const { typeKey } = useParams();
   const typeDef = getNodeType(typeKey);
-  const { database, isAdmin } = useConnection();
+  const { database, canWrite } = useConnection();
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +28,9 @@ export default function EntityListScreen() {
   const [filterText, setFilterText] = useState('');
   const [formModal, setFormModal] = useState(null); // { mode, initialNode } | null
   const [detailModal, setDetailModal] = useState(null); // { elementId, caption } | null
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState(null); // { total, created, failed: [{row,id,message}] } | null
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (!typeDef) return;
@@ -65,6 +71,35 @@ export default function EntityListScreen() {
     downloadCsv(`${typeDef.key}.csv`, csv);
   }
 
+  function handleDownloadTemplate() {
+    const csv = toCsvTemplate(typeDef.fields);
+    downloadCsv(`${typeDef.key}-template.csv`, csv);
+  }
+
+  function handleImportClick() {
+    fileInputRef.current?.click();
+  }
+
+  async function handleImportFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file on a retry
+    if (!file || !typeDef) return;
+
+    setImporting(true);
+    setImportSummary(null);
+    setError(null);
+    try {
+      const text = await file.text();
+      const summary = await importNodesFromCsvText(typeDef, text, database);
+      setImportSummary(summary);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleDelete(row) {
     const caption = captionFor(row.labels, row.properties);
     if (!window.confirm(`Delete ${typeDef.label.toLowerCase()} "${caption}" and all its relationships?`)) return;
@@ -98,15 +133,46 @@ export default function EntityListScreen() {
           <button type="button" onClick={handleExportCsv} disabled={filteredRows.length === 0}>
             Export CSV
           </button>
-          {isAdmin && (
-            <button type="button" onClick={() => setFormModal({ mode: 'create' })}>
-              + New {typeDef.label}
-            </button>
+          <button type="button" onClick={handleDownloadTemplate}>
+            Get CSV template
+          </button>
+          {canWrite && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                style={{ display: 'none' }}
+                onChange={handleImportFile}
+              />
+              <button type="button" onClick={handleImportClick} disabled={importing}>
+                {importing ? 'Importing…' : 'Import CSV'}
+              </button>
+              <button type="button" onClick={() => setFormModal({ mode: 'create' })}>
+                + New {typeDef.label}
+              </button>
+            </>
           )}
         </div>
       </div>
 
       {error && <p className="form-error">{error}</p>}
+
+      {importSummary && (
+        <p className={importSummary.failed.length > 0 ? 'form-error' : 'readonly-note'}>
+          Imported {importSummary.created} of {importSummary.total} row{importSummary.total === 1 ? '' : 's'}.
+          {importSummary.failed.length > 0 && (
+            <>
+              {' '}{importSummary.failed.length} failed:{' '}
+              {importSummary.failed.slice(0, MAX_SHOWN_IMPORT_ERRORS).map((f) => (
+                `row ${f.row}${f.id ? ` (${f.id})` : ''}: ${f.message}`
+              )).join('; ')}
+              {importSummary.failed.length > MAX_SHOWN_IMPORT_ERRORS &&
+                ` … and ${importSummary.failed.length - MAX_SHOWN_IMPORT_ERRORS} more`}
+            </>
+          )}
+        </p>
+      )}
 
       {loading ? (
         <p className="readonly-note">Loading…</p>
@@ -130,17 +196,15 @@ export default function EntityListScreen() {
                       type="button"
                       onClick={() => setDetailModal({ elementId: row.elementId, caption: captionFor(row.labels, row.properties) })}
                     >
-                      Detail
+                      Graph
                     </button>
-                    {isAdmin && (
-                      <>
-                        <button type="button" onClick={() => setFormModal({ mode: 'edit', initialNode: row })}>
-                          Edit
-                        </button>
-                        <button type="button" className="danger" onClick={() => handleDelete(row)}>
-                          Delete
-                        </button>
-                      </>
+                    <button type="button" onClick={() => setFormModal({ mode: 'edit', initialNode: row })}>
+                      Edit
+                    </button>
+                    {canWrite && (
+                      <button type="button" className="danger" onClick={() => handleDelete(row)}>
+                        Delete
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -163,6 +227,7 @@ export default function EntityListScreen() {
           mode={formModal.mode}
           initialNode={formModal.initialNode}
           database={database}
+          readOnly={!canWrite}
           onClose={() => setFormModal(null)}
           onSaved={load}
         />

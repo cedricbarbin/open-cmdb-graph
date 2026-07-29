@@ -40,25 +40,85 @@ export function isConnected() {
   return driver !== null;
 }
 
-const ADMIN_ROLE_HINTS = ['cmdb_admin', 'admin', 'architect', 'publisher'];
-const READONLY_ROLE_HINTS = ['cmdb_readonly', 'reader'];
+// The status code Neo4j returns on every query (except the self-service
+// password change below) when the account authenticated successfully but
+// is flagged CHANGE REQUIRED - e.g. a brand new user's first sign-in.
+const CREDENTIALS_EXPIRED_CODE = 'Neo.ClientError.Security.CredentialsExpired';
+
+export function isCredentialsExpiredError(err) {
+  return err?.code === CREDENTIALS_EXPIRED_CODE;
+}
+
+/** Self-service password change. This is the one command Neo4j still lets
+ * a CHANGE REQUIRED account run (every other query is rejected with
+ * CredentialsExpired), so it works against the `driver` already
+ * authenticated with the old password - no admin privileges needed, since
+ * a user is always allowed to change their own password. */
+export async function changeOwnPassword({ oldPassword, newPassword }) {
+  await runQuery(
+    'ALTER CURRENT USER SET PASSWORD FROM $oldPassword TO $newPassword',
+    { oldPassword, newPassword },
+    'system'
+  );
+}
+
+// Ranked low -> high privilege. `hints` matches common naming conventions
+// beyond this app's own role names (cmdb_*), so profile detection still
+// degrades sensibly against a differently-named RBAC setup.
+const ROLE_TIERS = [
+  { profile: 'readonly',  role: 'cmdb_readonly',  label: 'Read-only', hints: ['cmdb_readonly', 'readonly', 'reader'] },
+  { profile: 'operator',  role: 'cmdb_operator',  label: 'Operator',  hints: ['cmdb_operator', 'operator', 'editor', 'publisher'] },
+  { profile: 'superuser', role: 'cmdb_superuser', label: 'Superuser', hints: ['cmdb_superuser', 'superuser', 'poweruser', 'power_user'] },
+  { profile: 'admin',     role: 'cmdb_admin',     label: 'Admin',     hints: ['cmdb_admin', 'admin', 'administrator', 'architect'] }
+];
+
+/** The app's 4 canonical CMDB roles, for the Manage Users screen's profile
+ * picker (`role` is the literal Neo4j role name granted/revoked). */
+export const CMDB_PROFILES = ROLE_TIERS.map(({ role, profile, label }) => ({ role, profile, label }));
+
+// Neo4j privileges are additive across a user's roles, so if more than one
+// tier matches, the highest one wins - that reflects what Neo4j will
+// actually let the account do, not just the first role alphabetically.
+function matchRoleTier(roles) {
+  const lowerRoles = (roles ?? []).map((r) => String(r).toLowerCase());
+  let matched = null;
+  for (const tier of ROLE_TIERS) {
+    if (lowerRoles.some((r) => tier.hints.includes(r))) matched = tier;
+  }
+  return matched;
+}
+
+/** Best-effort mapping of a user's raw Neo4j roles to one of the app's 4
+ * canonical CMDB profiles (used by the Manage Users screen). Returns null
+ * if none of the roles match any known tier. */
+export function deriveCmdbProfile(roles) {
+  const tier = matchRoleTier(roles);
+  return tier ? { role: tier.role, profile: tier.profile, label: tier.label } : null;
+}
 
 /**
- * Determines the app-level profile ('admin' | 'readonly') for the currently
- * authenticated user by reading their Neo4j roles via `SHOW CURRENT USER`
- * (an administration command, so it must run against the `system` database
- * regardless of which database the app otherwise talks to).
+ * Determines the app-level profile ('readonly' | 'operator' | 'superuser' |
+ * 'admin') for the currently authenticated user by reading their Neo4j
+ * roles via `SHOW CURRENT USER` (an administration command, so it must run
+ * against the `system` database regardless of which database the app
+ * otherwise talks to).
+ *
+ * Profiles, from least to most privileged:
+ *   - readonly  : browse only, no writes
+ *   - operator  : can create/edit/delete CMDB data via the business
+ *                 screens; the Graph Explorer menu itself is hidden
+ *   - superuser : everything operator can do, plus Graph Explorer
+ *   - admin     : everything superuser can do, plus the "Manage Users" menu
  *
  * The real security boundary is always Neo4j's own role privileges (see
  * cypher/00_security_setup.cypher) - a write rejected by the database stays
  * rejected no matter what this function returns. This only decides what the
  * UI *offers*, so its fallbacks intentionally fail open to 'admin' rather
  * than silently hiding functionality:
- *   - roles known to be read-only (cmdb_readonly, reader)      -> readonly
- *   - roles known to be admin-ish (cmdb_admin, admin, ...)     -> admin
  *   - empty roles list (Community Edition has no custom roles) -> admin
- *   - unrecognized non-empty roles                             -> readonly
- *   - SHOW CURRENT USER unsupported/unavailable                -> admin
+ *   - non-empty roles matching a known tier                     -> that tier
+ *   - non-empty roles matching no known tier                    -> readonly
+ *   - SHOW CURRENT USER unsupported/unavailable                 -> admin
  */
 export async function getCurrentUserProfile() {
   if (!driver) throw new Error('Not connected to Neo4j');
@@ -70,20 +130,12 @@ export async function getCurrentUserProfile() {
 
     const username = record.get('user');
     const roles = record.get('roles') ?? [];
-    const lowerRoles = roles.map((r) => String(r).toLowerCase());
+    if (roles.length === 0) return { username, roles, profile: 'admin', detected: true };
 
-    let profile;
-    if (lowerRoles.length === 0) {
-      profile = 'admin';
-    } else if (lowerRoles.some((r) => ADMIN_ROLE_HINTS.includes(r))) {
-      profile = 'admin';
-    } else if (lowerRoles.some((r) => READONLY_ROLE_HINTS.includes(r))) {
-      profile = 'readonly';
-    } else {
-      profile = 'readonly';
-    }
-    return { username, roles, profile, detected: true };
-  } catch {
+    const tier = matchRoleTier(roles);
+    return { username, roles, profile: tier ? tier.profile : 'readonly', detected: true };
+  } catch (err) {
+    if (isCredentialsExpiredError(err)) throw err;
     return { username: null, roles: [], profile: 'admin', detected: false };
   } finally {
     await session.close();
@@ -155,6 +207,24 @@ export async function createRelationship({ fromElementId, toElementId, type, pro
   return records[0]?.get('r');
 }
 
+/** Creates a relationship between two nodes identified by their business
+ * `id` property, not elementId - used by CSV/ZIP restore, where the only
+ * identifier available from a spreadsheet cell is `id`, not a live
+ * elementId from a current query result. Throws if either side can't be
+ * matched, since a silent no-op would show up as "restore succeeded" when
+ * it didn't. */
+export async function createRelationshipByBusinessId({ fromId, toId, type }, database) {
+  const safeType = backtick(assertValidIdentifier(type, 'relationship type'));
+  const cypher = `
+    MATCH (a {id: $fromId})
+    MATCH (b {id: $toId})
+    CREATE (a)-[r:${safeType}]->(b)
+    RETURN r`;
+  const records = await runQuery(cypher, { fromId, toId }, database);
+  if (records.length === 0) throw new Error(`No node found with id "${fromId}" and/or "${toId}"`);
+  return records[0].get('r');
+}
+
 export async function updateRelationshipProperties({ elementId, properties, replace = false }, database) {
   const cypher = replace
     ? `MATCH ()-[r]->() WHERE elementId(r) = $elementId SET r = $properties RETURN r`
@@ -206,6 +276,21 @@ export function fetchNodesByLabel({ label, sortField = 'id', limit = 1000 }, dat
   const safeSortField = assertValidIdentifier(sortField, 'sort field');
   const cypher = `MATCH (n:${safeLabel}) RETURN n ORDER BY n.${safeSortField} LIMIT $limit`;
   return runQuery(cypher, { limit: neo4j.int(limit) }, database);
+}
+
+/** Relationships where both endpoints carry at least one of the given
+ * labels - used by the Backup & Restore screen to export the edges that
+ * run directly between a selected set of business-screen types. Labels
+ * aren't user input here (always a typeDef.matchLabel from the registry),
+ * so no assertValidIdentifier guard is needed - they're passed as a query
+ * parameter to `any(l IN labels(n) WHERE l IN $labels)`, not interpolated
+ * into the query string. */
+export function fetchRelationshipsBetweenLabels({ labels }, database) {
+  const cypher = `
+    MATCH (a)-[r]->(b)
+    WHERE any(l IN labels(a) WHERE l IN $labels) AND any(l IN labels(b) WHERE l IN $labels)
+    RETURN type(r) AS relType, a.id AS fromId, b.id AS toId`;
+  return runQuery(cypher, { labels }, database);
 }
 
 /** A node's direct 1-hop neighborhood, for the dependency graph modal. */
@@ -280,4 +365,54 @@ export async function fetchAllRelationshipTypes(database) {
     database
   );
   return records.map((r) => r.get('relationshipType'));
+}
+
+// ---------------------------------------------------------------------
+// User management (admin profile only - see cypher/00_security_setup.cypher
+// for the USER MANAGEMENT / ROLE MANAGEMENT privileges this requires).
+// These are administration commands, always run against the `system`
+// database. Unlike labels/relationship types, usernames/role names in
+// administration commands CAN be parameterized, so no identifier
+// allow-list/backtick-quoting is needed here.
+// ---------------------------------------------------------------------
+
+export async function fetchUsers() {
+  const records = await runQuery(
+    'SHOW USERS YIELD user, roles, suspended RETURN user, roles, suspended ORDER BY user',
+    {},
+    'system'
+  );
+  return records.map((r) => ({
+    username: r.get('user'),
+    roles: r.get('roles'),
+    suspended: r.get('suspended')
+  }));
+}
+
+/** Create a user and grant it exactly one of the app's 4 CMDB roles. */
+export async function createUser({ username, password, role }) {
+  await runQuery(
+    'CREATE USER $username SET PASSWORD $password CHANGE REQUIRED SET STATUS ACTIVE',
+    { username, password },
+    'system'
+  );
+  await runQuery('GRANT ROLE $role TO $username', { role, username }, 'system');
+}
+
+/** Swap a user's CMDB profile: revoke the previous role (if any) so a user
+ * never ends up holding two of the four profiles at once, then grant the
+ * new one. */
+export async function setUserRole({ username, role, previousRole }) {
+  if (previousRole && previousRole !== role) {
+    await runQuery('REVOKE ROLE $previousRole FROM $username', { previousRole, username }, 'system');
+  }
+  await runQuery('GRANT ROLE $role TO $username', { role, username }, 'system');
+}
+
+export async function setUserPassword({ username, password }) {
+  await runQuery('ALTER USER $username SET PASSWORD $password CHANGE REQUIRED', { username, password }, 'system');
+}
+
+export async function deleteUser({ username }) {
+  await runQuery('DROP USER $username', { username }, 'system');
 }

@@ -235,6 +235,91 @@ SET i += {title:'Customer PII exposed in debug logs', description:'Order API deb
 MERGE (t:Ticket {id:'tkt-1007'})
 SET t += {title:'Redact PII from application logs', description:'Remove customer PII fields from order-api debug logging; see inc-2026-0006', type:'incident', status:'resolved', priority:'high', createdAt:datetime('2026-06-20T09:10:00Z'), updatedAt:datetime('2026-06-21T10:00:00Z'), dueDate:null};
 
+// ---------------------------------------------------------------------
+// 13. VLANs & SUBNETS (full IPAM, grouping the existing flat IPAddress nodes)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'vlan-100', name:'Prod-Servers', vlanId:100, description:'Production server VLAN, Paris & Lyon datacenters'}
+] AS row
+MERGE (v:VLAN {id: row.id})
+SET v += row;
+
+UNWIND [
+  {id:'subnet-par1-prod',  name:'Paris DC1 - Prod', cidr:'10.10.1.0/24', gateway:'10.10.1.1', description:'Production data + management subnet at Paris DC1'},
+  {id:'subnet-lyon1-prod', name:'Lyon DC1 - Prod',  cidr:'10.20.1.0/24', gateway:'10.20.1.1', description:'Production data + management subnet at Lyon DC1'}
+] AS row
+MERGE (s:Subnet {id: row.id})
+SET s += row;
+
+// ---------------------------------------------------------------------
+// 14. CHANGE APPROVALS (multi-step approval chain, alongside the existing
+// single APPROVED_BY edge)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'appr-chg2-0001-step1', step:1, status:'approved', comment:'Security review passed - JWT rotation plan looks sound', decidedAt:datetime('2026-07-20T15:00:00Z')},
+  {id:'appr-chg2-0001-step2', step:2, status:'pending',  comment:null, decidedAt:null}
+] AS row
+MERGE (a:Approval {id: row.id})
+SET a += row;
+
+// ---------------------------------------------------------------------
+// 15. COST CENTERS & BUDGETS (chargeback/showback)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'cc-ecommerce', name:'E-commerce', code:'CC-1001'},
+  {id:'cc-platform',  name:'Platform',   code:'CC-1002'},
+  {id:'cc-finance',   name:'Finance',    code:'CC-1003'},
+  {id:'cc-sales',     name:'Sales',      code:'CC-1004'}
+] AS row
+MERGE (c:CostCenter {id: row.id})
+SET c += row;
+
+UNWIND [
+  {id:'budget-ecommerce-2026', name:'E-commerce FY2026', amount:250000, currency:'EUR', fiscalYear:2026},
+  {id:'budget-platform-2026',  name:'Platform FY2026',   amount:400000, currency:'EUR', fiscalYear:2026},
+  {id:'budget-finance-2026',   name:'Finance FY2026',    amount:120000, currency:'EUR', fiscalYear:2026},
+  {id:'budget-sales-2026',     name:'Sales FY2026',      amount:80000,  currency:'EUR', fiscalYear:2026}
+] AS row
+MERGE (b:Budget {id: row.id})
+SET b += row;
+
+// ---------------------------------------------------------------------
+// 16. APPLICATION VERSION HISTORY (point-in-time snapshots)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'appver-orderapi-2.3.0', version:'2.3.0', validFrom:date('2025-11-01'), validTo:date('2026-03-01'), changelog:'Initial GA release with basic order management'},
+  {id:'appver-orderapi-2.4.1', version:'2.4.1', validFrom:date('2026-03-01'), validTo:null,               changelog:'Added billing worker dependency, async order processing'},
+  {id:'appver-authsvc-1.9.0',  version:'1.9.0', validFrom:date('2026-01-15'), validTo:null,               changelog:'Current stable release'},
+  {id:'appver-authsvc-2.0.0',  version:'2.0.0', validFrom:date('2026-08-03'), validTo:null,               changelog:'Breaking JWT format change - see chg-2026-0002'}
+] AS row
+MERGE (av:ApplicationVersion {id: row.id})
+SET av += row;
+
+// ---------------------------------------------------------------------
+// 17. DATA FLOWS (ETL/replication pipelines between Data assets,
+// independent of the applications that own the data)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'flow-orders-billing-sync',  name:'Orders -> Billing Ledger Sync',      description:'Nightly batch job that replicates settled orders into the billing ledger for invoicing', type:'batch', schedule:'0 2 * * *'},
+  {id:'flow-customer-pii-masking', name:'Customer PII Masking Feed',         description:'Extracts and masks PII from the customer database before it reaches the Cloud API access logs pipeline (compliance requirement, see inc-2026-0006)', type:'etl', schedule:'*/15 * * * *'}
+] AS row
+MERGE (f:DataFlow {id: row.id})
+SET f += row;
+
+// ---------------------------------------------------------------------
+// 18. SUPERVISION PROBES (health checks against Virtual Servers,
+// Containers, and Applications)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'probe-web01-tls-port',    name:'web-01 TLS port check',        description:'Confirms nginx is accepting HTTPS connections', checkType:'port',    port:443,  command:null, process:null, intervalSeconds:30,  timeoutSeconds:5,  alertCondition:'port unreachable for 2 consecutive checks', alertThreshold:2, severity:'SEV2', status:'ok'},
+  {id:'probe-orderapi-process',  name:'order-api process check',      description:'Confirms the order-api process is running',    checkType:'process', port:null, command:null, process:'order-api', intervalSeconds:60, timeoutSeconds:10, alertCondition:'process not found', alertThreshold:1, severity:'SEV1', status:'ok'},
+  {id:'probe-authsvc-healthcheck', name:'auth-service health endpoint', description:'Curls the auth-service internal health endpoint', checkType:'command', port:null, command:'curl -sf http://localhost:9000/health', process:null, intervalSeconds:30, timeoutSeconds:5, alertCondition:'exit code != 0 for 3 consecutive checks', alertThreshold:3, severity:'SEV1', status:'ok'},
+  {id:'probe-cloudapi-port',     name:'cloud-api TLS port check',     description:'Confirms the public Cloud API gateway is accepting connections', checkType:'port', port:8443, command:null, process:null, intervalSeconds:30, timeoutSeconds:5, alertCondition:'port unreachable for 1 check', alertThreshold:1, severity:'SEV2', status:'warning'},
+  {id:'probe-billing-process',   name:'billing-worker process check', description:'Confirms the billing-worker process is running', checkType:'process', port:null, command:null, process:'billing-worker', intervalSeconds:120, timeoutSeconds:10, alertCondition:'process not found for 1 check', alertThreshold:1, severity:'SEV3', status:'ok'}
+] AS row
+MERGE (p:Probe {id: row.id})
+SET p += row;
+
 // =====================================================================
 // RELATIONSHIPS
 // =====================================================================
@@ -516,3 +601,89 @@ MATCH (t:Ticket {id:'tkt-1007'}), (i:Incident {id:'inc-2026-0006'})   MERGE (t)-
 MATCH (t:Ticket {id:'tkt-1007'}), (d:Data {id:'data-customers'})      MERGE (t)-[:CONCERNS]->(d);
 MATCH (t:Ticket {id:'tkt-1007'}), (p:Person {id:'p-bob'})             MERGE (t)-[:ASSIGNED_TO]->(p);
 MATCH (t:Ticket {id:'tkt-1007'}), (p:Person {id:'p-carol'})           MERGE (t)-[:OPENED_BY]->(p);
+
+// ---------------------------------------------------------------------
+// VLANs & Subnets -> IPAddress (full IPAM)
+// ---------------------------------------------------------------------
+UNWIND [
+  ['subnet-par1-prod','vlan-100'], ['subnet-lyon1-prod','vlan-100']
+] AS pair
+MATCH (s:Subnet {id: pair[0]}), (v:VLAN {id: pair[1]})
+MERGE (s)-[:IN_VLAN]->(v);
+
+UNWIND [
+  ['ip-10-10-1-11','subnet-par1-prod'],   ['ip-10-10-1-101','subnet-par1-prod'],
+  ['ip-10-10-1-12','subnet-par1-prod'],   ['ip-10-10-1-102','subnet-par1-prod'],
+  ['ip-10-20-1-11','subnet-lyon1-prod'],  ['ip-10-20-1-111','subnet-lyon1-prod'],
+  ['ip-10-20-1-20','subnet-lyon1-prod'],  ['ip-10-20-1-120','subnet-lyon1-prod']
+] AS pair
+MATCH (ip:IPAddress {id: pair[0]}), (s:Subnet {id: pair[1]})
+MERGE (ip)-[:IN_SUBNET]->(s);
+
+// ---------------------------------------------------------------------
+// Change approvals: multi-step chain for chg-2026-0002 (high risk, still
+// needs a second sign-off beyond the simple APPROVED_BY edge)
+// ---------------------------------------------------------------------
+MATCH (c:ChangeRequest {id:'chg-2026-0002'}), (a:Approval {id:'appr-chg2-0001-step1'}) MERGE (c)-[:HAS_APPROVAL]->(a);
+MATCH (c:ChangeRequest {id:'chg-2026-0002'}), (a:Approval {id:'appr-chg2-0001-step2'}) MERGE (c)-[:HAS_APPROVAL]->(a);
+MATCH (a:Approval {id:'appr-chg2-0001-step1'}), (p:Person {id:'p-alice'}) MERGE (a)-[:DECIDED_BY]->(p);
+
+// ---------------------------------------------------------------------
+// Cost centers & budgets -> Applications / Teams (chargeback)
+// ---------------------------------------------------------------------
+UNWIND [
+  ['app-webportal','cc-ecommerce'], ['app-orderapi','cc-ecommerce'],
+  ['app-authsvc','cc-platform'],    ['app-cloudapi','cc-platform'],
+  ['app-billing','cc-finance'],     ['app-crm','cc-sales']
+] AS pair
+MATCH (a:Application {id: pair[0]}), (c:CostCenter {id: pair[1]})
+MERGE (a)-[:CHARGED_TO]->(c);
+
+UNWIND [
+  ['team-appdev','cc-ecommerce'], ['team-platform','cc-platform'], ['team-infra','cc-platform']
+] AS pair
+MATCH (t:Team {id: pair[0]}), (c:CostCenter {id: pair[1]})
+MERGE (t)-[:CHARGED_TO]->(c);
+
+UNWIND [
+  ['cc-ecommerce','budget-ecommerce-2026'], ['cc-platform','budget-platform-2026'],
+  ['cc-finance','budget-finance-2026'],     ['cc-sales','budget-sales-2026']
+] AS pair
+MATCH (c:CostCenter {id: pair[0]}), (b:Budget {id: pair[1]})
+MERGE (c)-[:HAS_BUDGET]->(b);
+
+// ---------------------------------------------------------------------
+// Application version history
+// ---------------------------------------------------------------------
+UNWIND [
+  ['app-orderapi','appver-orderapi-2.3.0'], ['app-orderapi','appver-orderapi-2.4.1'],
+  ['app-authsvc','appver-authsvc-1.9.0'],   ['app-authsvc','appver-authsvc-2.0.0']
+] AS pair
+MATCH (a:Application {id: pair[0]}), (av:ApplicationVersion {id: pair[1]})
+MERGE (a)-[:HAD_VERSION]->(av);
+
+// ---------------------------------------------------------------------
+// Data flows: source/target Data assets + implementing Application
+// ---------------------------------------------------------------------
+MATCH (f:DataFlow {id:'flow-orders-billing-sync'}), (d:Data {id:'data-orders'})
+MERGE (f)-[:SOURCE_DATA]->(d);
+MATCH (f:DataFlow {id:'flow-orders-billing-sync'}), (d:Data {id:'data-billing-ledger'})
+MERGE (f)-[:TARGET_DATA]->(d);
+MATCH (f:DataFlow {id:'flow-orders-billing-sync'}), (a:Application {id:'app-billing'})
+MERGE (a)-[:IMPLEMENTS]->(f);
+
+MATCH (f:DataFlow {id:'flow-customer-pii-masking'}), (d:Data {id:'data-customers'})
+MERGE (f)-[:SOURCE_DATA]->(d);
+MATCH (f:DataFlow {id:'flow-customer-pii-masking'}), (d:Data {id:'data-api-logs'})
+MERGE (f)-[:TARGET_DATA]->(d);
+MATCH (f:DataFlow {id:'flow-customer-pii-masking'}), (a:Application {id:'app-cloudapi'})
+MERGE (a)-[:IMPLEMENTS]->(f);
+
+// ---------------------------------------------------------------------
+// Supervision probes -> the Virtual Server / Container / Application they monitor
+// ---------------------------------------------------------------------
+MATCH (p:Probe {id:'probe-web01-tls-port'}),    (v:Server:Virtual {id:'vm-web-01'})      MERGE (p)-[:MONITORS]->(v);
+MATCH (p:Probe {id:'probe-orderapi-process'}),  (a:Application {id:'app-orderapi'})       MERGE (p)-[:MONITORS]->(a);
+MATCH (p:Probe {id:'probe-authsvc-healthcheck'}), (c:Container {id:'ctr-app-auth-01'})    MERGE (p)-[:MONITORS]->(c);
+MATCH (p:Probe {id:'probe-cloudapi-port'}),     (c:Container {id:'ctr-cloud-api-01'})     MERGE (p)-[:MONITORS]->(c);
+MATCH (p:Probe {id:'probe-billing-process'}),   (a:Application {id:'app-billing'})        MERGE (p)-[:MONITORS]->(a);

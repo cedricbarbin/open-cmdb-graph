@@ -35,9 +35,10 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.app-header h1 {
-  font-size: 1.1rem;
-  margin: 0;
+.app-logo {
+  height: 4rem;
+  width: auto;
+  display: block;
 }
 
 .connection-panel {
@@ -78,6 +79,16 @@ body {
 .profile-admin {
   background: #2e7d32;
   color: #eafaec;
+}
+
+.profile-superuser {
+  background: #ef6c00;
+  color: #fff3e0;
+}
+
+.profile-operator {
+  background: #1565c0;
+  color: #eaf2fc;
 }
 
 .profile-readonly {
@@ -179,9 +190,11 @@ body {
   font-weight: 600;
 }
 
-.sidebar-top-link {
-  font-weight: 600;
-  border: 1px solid var(--border);
+.sidebar-separator {
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0;
 }
 
 .sidebar-group h4 {
@@ -238,6 +251,55 @@ body {
 
 .filter-input {
   width: 14rem;
+}
+
+.menu-settings-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.menu-settings-group {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.menu-settings-group h4 {
+  margin: 0 0 0.15rem 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.menu-settings-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.backup-summary {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: var(--panel-alt);
+}
+
+.backup-summary h4 {
+  margin: 0 0 0.4rem 0;
+}
+
+.backup-summary ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
 }
 
 .table-wrapper {

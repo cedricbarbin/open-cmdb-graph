@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CMDB_PROFILES } from '../lib/neo4j.js';
 
 const DEFAULT_FORM = {
   uri: 'neo4j://localhost:7687',
@@ -7,7 +8,56 @@ const DEFAULT_FORM = {
   database: 'neo4j'
 };
 
-export default function ConnectionPanel({ connected, connecting, error, profile, onConnect, onDisconnect }) {
+function ChangePasswordForm({ connecting, error, username, onSubmit, onCancel }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [validationError, setValidationError] = useState(null);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!newPassword) {
+      setValidationError('Enter a new password.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setValidationError('Passwords do not match.');
+      return;
+    }
+    setValidationError(null);
+    onSubmit(newPassword);
+  }
+
+  return (
+    <form className="connection-panel" onSubmit={handleSubmit}>
+      <span>Neo4j requires a new password for {username ?? 'this account'}</span>
+      <input
+        type="password"
+        value={newPassword}
+        onChange={(e) => setNewPassword(e.target.value)}
+        placeholder="new password"
+        autoFocus
+      />
+      <input
+        type="password"
+        value={confirmPassword}
+        onChange={(e) => setConfirmPassword(e.target.value)}
+        placeholder="confirm new password"
+      />
+      <button type="submit" disabled={connecting}>
+        {connecting ? 'Updating…' : 'Set password'}
+      </button>
+      <button type="button" onClick={onCancel} disabled={connecting}>
+        Cancel
+      </button>
+      {(validationError || error) && <span className="connection-error">{validationError || error}</span>}
+    </form>
+  );
+}
+
+export default function ConnectionPanel({
+  connected, connecting, error, profile, onConnect, onDisconnect,
+  passwordChangeRequired, pendingUsername, onChangePassword, onCancelPasswordChange
+}) {
   const [form, setForm] = useState(DEFAULT_FORM);
 
   function handleChange(field) {
@@ -20,7 +70,7 @@ export default function ConnectionPanel({ connected, connecting, error, profile,
   }
 
   if (connected) {
-    const isAdmin = profile?.profile === 'admin';
+    const profileLabel = CMDB_PROFILES.find((p) => p.profile === profile?.profile)?.label ?? profile?.profile;
     return (
       <div className="connection-panel connected">
         <span className="status-dot" />
@@ -30,11 +80,23 @@ export default function ConnectionPanel({ connected, connecting, error, profile,
             className={`profile-badge profile-${profile.profile}`}
             title={profile.detected ? `Neo4j roles: ${profile.roles.join(', ') || '(none)'}` : 'Role could not be determined'}
           >
-            {profile.username ?? form.username} · {isAdmin ? 'admin' : 'read-only'}
+            {profile.username ?? form.username} · {profileLabel}
           </span>
         )}
         <button type="button" onClick={onDisconnect}>Sign out</button>
       </div>
+    );
+  }
+
+  if (passwordChangeRequired) {
+    return (
+      <ChangePasswordForm
+        connecting={connecting}
+        error={error}
+        username={pendingUsername ?? form.username}
+        onSubmit={onChangePassword}
+        onCancel={onCancelPasswordChange}
+      />
     );
   }
 

@@ -30,6 +30,16 @@ CREATE CONSTRAINT sla_id_unique           IF NOT EXISTS FOR (n:SLA)         REQU
 CREATE CONSTRAINT data_id_unique          IF NOT EXISTS FOR (n:Data)        REQUIRE n.id IS UNIQUE;
 CREATE CONSTRAINT datacategory_id_unique  IF NOT EXISTS FOR (n:DataCategory) REQUIRE n.id IS UNIQUE;
 CREATE CONSTRAINT datacategory_name_unique IF NOT EXISTS FOR (n:DataCategory) REQUIRE n.name IS UNIQUE;
+CREATE CONSTRAINT vlan_id_unique          IF NOT EXISTS FOR (n:VLAN)        REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT subnet_id_unique        IF NOT EXISTS FOR (n:Subnet)      REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT subnet_cidr_unique      IF NOT EXISTS FOR (n:Subnet)      REQUIRE n.cidr IS UNIQUE;
+CREATE CONSTRAINT approval_id_unique      IF NOT EXISTS FOR (n:Approval)    REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT costcenter_id_unique    IF NOT EXISTS FOR (n:CostCenter)  REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT costcenter_code_unique  IF NOT EXISTS FOR (n:CostCenter)  REQUIRE n.code IS UNIQUE;
+CREATE CONSTRAINT budget_id_unique        IF NOT EXISTS FOR (n:Budget)      REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT appversion_id_unique    IF NOT EXISTS FOR (n:ApplicationVersion) REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT dataflow_id_unique      IF NOT EXISTS FOR (n:DataFlow)    REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT probe_id_unique         IF NOT EXISTS FOR (n:Probe)       REQUIRE n.id IS UNIQUE;
 
 // Person email should be unique too
 CREATE CONSTRAINT person_email_unique     IF NOT EXISTS FOR (n:Person)      REQUIRE n.email IS UNIQUE;
@@ -60,6 +70,14 @@ CREATE INDEX ipaddress_address_idx    IF NOT EXISTS FOR (n:IPAddress)   ON (n.ad
 CREATE INDEX data_name_idx            IF NOT EXISTS FOR (n:Data)        ON (n.name);
 CREATE INDEX data_type_idx            IF NOT EXISTS FOR (n:Data)        ON (n.type);
 CREATE INDEX datacategory_sensitivity_idx IF NOT EXISTS FOR (n:DataCategory) ON (n.sensitivity);
+CREATE INDEX subnet_cidr_idx          IF NOT EXISTS FOR (n:Subnet)      ON (n.cidr);
+CREATE INDEX approval_status_idx      IF NOT EXISTS FOR (n:Approval)    ON (n.status);
+CREATE INDEX costcenter_code_idx      IF NOT EXISTS FOR (n:CostCenter)  ON (n.code);
+CREATE INDEX budget_fiscalyear_idx    IF NOT EXISTS FOR (n:Budget)      ON (n.fiscalYear);
+CREATE INDEX appversion_validfrom_idx IF NOT EXISTS FOR (n:ApplicationVersion) ON (n.validFrom);
+CREATE INDEX dataflow_type_idx        IF NOT EXISTS FOR (n:DataFlow)    ON (n.type);
+CREATE INDEX probe_status_idx         IF NOT EXISTS FOR (n:Probe)       ON (n.status);
+CREATE INDEX probe_checktype_idx      IF NOT EXISTS FOR (n:Probe)       ON (n.checkType);
 
 // Full text index used by the app's search box AND by the business screens'
 // relationship-picker autocomplete (see app/src/lib/nodeTypes.js). Dropped
@@ -68,5 +86,5 @@ CREATE INDEX datacategory_sensitivity_idx IF NOT EXISTS FOR (n:DataCategory) ON 
 // fulltext indexes) - safe to do any time, it just gets rebuilt.
 DROP INDEX cmdb_fulltext IF EXISTS;
 CREATE FULLTEXT INDEX cmdb_fulltext
-FOR (n:Location|Server|Container|Application|Team|Person|Incident|Ticket|ChangeRequest|Vendor|Contract|Environment|SLA|NetworkInterface|IPAddress|Data|DataCategory)
-ON EACH [n.name, n.hostname, n.title, n.id, n.address, n.contractNumber];
+FOR (n:Location|Server|Container|Application|Team|Person|Incident|Ticket|ChangeRequest|Vendor|Contract|Environment|SLA|NetworkInterface|IPAddress|Data|DataCategory|VLAN|Subnet|Approval|CostCenter|Budget|ApplicationVersion|DataFlow|Probe)
+ON EACH [n.name, n.hostname, n.title, n.id, n.address, n.contractNumber, n.cidr, n.code, n.version];

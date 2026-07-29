@@ -1,4 +1,4 @@
-# CMDB Graph Model (Neo4j)
+# Open CMDB Graph
 
 A configuration management database modeled as a property graph: locations
 (datacenters/cloud regions), servers (physical/virtual), containers,
@@ -40,6 +40,14 @@ cmdb/
 | `:SLA`                       | Service level agreement tier               | id, name, uptimeTargetPct, responseTimeMinutes, resolutionTimeHours |
 | `:Data`                      | Data asset (database, cache, log store…)   | id, name, description, type, format, volumeGB |
 | `:DataCategory`              | Data classification taxonomy entry         | id, name, sensitivity (public/internal/confidential/restricted), regulatoryScope |
+| `:VLAN`                      | Layer-2 network segment                    | id, name, vlanId, description |
+| `:Subnet`                    | IP subnet, grouped under a VLAN            | id, name, cidr, gateway, description |
+| `:Approval`                  | One step in a change's approval chain      | id, step, status (pending/approved/rejected), comment, decidedAt |
+| `:CostCenter`                | Chargeback/showback cost center            | id, name, code |
+| `:Budget`                    | A cost center's budget for a fiscal year   | id, name, amount, currency, fiscalYear |
+| `:ApplicationVersion`        | Point-in-time version snapshot of an app   | id, version, validFrom, validTo, changelog |
+| `:DataFlow`                  | ETL/replication pipeline between data assets | id, name, description, type, schedule |
+| `:Probe`                     | Supervision/health check on a resource     | id, name, description, checkType (command/process/port), command, process, port, intervalSeconds, timeoutSeconds, alertCondition, alertThreshold, severity (SEV1-4), status (ok/warning/critical/unknown/disabled) |
 
 Every node carries a unique `id` string property (enforced by constraints) —
 this is what all sample Cypher `MERGE`s and the app's write operations key off.
@@ -88,6 +96,23 @@ queries (`MATCH (s:Server)`) work across both; same pattern for
 (:Data)              -[:STORED_ON]->    (:Server)
 (:Incident)          -[:IMPACTS]->      (:Data)   // Data is also a valid IMPACTS/CONCERNS target
 (:Ticket)            -[:CONCERNS]->     (:Data)
+
+(:Subnet)            -[:IN_VLAN]->      (:VLAN)
+(:IPAddress)         -[:IN_SUBNET]->    (:Subnet)
+
+(:ChangeRequest)     -[:HAS_APPROVAL]-> (:Approval)   // multi-step chain, alongside the simpler APPROVED_BY edge
+(:Approval)          -[:DECIDED_BY]->   (:Person)
+
+(:Application | :Team) -[:CHARGED_TO]-> (:CostCenter)
+(:CostCenter)        -[:HAS_BUDGET]->   (:Budget)
+
+(:Application)       -[:HAD_VERSION]->  (:ApplicationVersion)
+
+(:DataFlow)          -[:SOURCE_DATA]->  (:Data)
+(:DataFlow)          -[:TARGET_DATA]->  (:Data)
+(:Application)       -[:IMPLEMENTS]->   (:DataFlow)   // which app runs/owns the pipeline
+
+(:Probe)             -[:MONITORS]->     (:Server:Virtual | :Container | :Application)
 ```
 
 This lets you answer typical CMDB questions directly with graph traversals:
@@ -136,11 +161,13 @@ each statement (they're `;`-separated). `03_sample_queries.cypher` is a
 cookbook organized in lettered sections — A/B discovery & topology, C
 application dependencies, D incidents/tickets, E network/IPAM, F vendors
 & contracts, G change management, H environments/SLAs, I data &
-classification, and J write operations. Run individual blocks (A1, B2, D3,
-G1, I3, …) as needed; the last section (`J.` write operations) mutates the
-sample data so run those selectively.
+classification, K IPAM v2 (VLAN/Subnet), L multi-step change approvals,
+M cost centers/budgets, N application version history, O data flows,
+P supervision probes, and Q write operations. Run individual blocks (A1, B2,
+D3, G1, I3, …) as needed; the last section (`Q.` write operations) mutates
+the sample data so run those selectively.
 
-The data is idempotent (`MERGE` on `id`) except for section J of the cookbook,
+The data is idempotent (`MERGE` on `id`) except for section Q of the cookbook,
 which uses `CREATE` on purpose (it demonstrates ad hoc writes matching what
 the app does) — re-running those blocks will duplicate nodes.
 
@@ -157,7 +184,7 @@ merely hides a button is not a security boundary.
 
 **Setup** (Neo4j Enterprise Edition or Aura only — see the Community Edition
 note below): run `cypher/00_security_setup.cypher` against the `system`
-database to create two roles and two example users:
+database to create four roles and four example users (one per role):
 
 ```bash
 cypher-shell -a neo4j://localhost:7687 -u neo4j -p <password> -d system -f cypher/00_security_setup.cypher
@@ -165,34 +192,63 @@ cypher-shell -a neo4j://localhost:7687 -u neo4j -p <password> -d system -f cyphe
 
 | Profile | Role | Example user | Can do |
 |---|---|---|---|
-| Read-only | `cmdb_readonly` | `cmdb_viewer` | Browse the graph, run read queries |
-| Admin | `cmdb_admin` | `cmdb_operator` | Everything read-only can, plus create/update/delete nodes and relationships, add labels, and (since the app's forms can introduce new labels/relationship types on the fly) evolve the schema |
+| Read-only | `cmdb_readonly` | `cmdb_viewer` | Browse the graph and business screens, run read queries. No write controls anywhere, and no access to the sidebar's **Admin** group. |
+| Operator | `cmdb_operator` | `cmdb_operator` | Everything read-only can, plus create/update/delete nodes and relationships from the **business screens**. Still no access to the **Admin** group. |
+| Superuser | `cmdb_superuser` | `cmdb_superuser` | Same app UI as operator — this app's **Admin** group (Graph Explorer, Manage Users, Backup & Restore) is admin-only, not superuser-and-up. The role still carries the DB-level schema-evolution privileges (`NAME MANAGEMENT`/`INDEX MANAGEMENT`/`CONSTRAINT MANAGEMENT`) for use outside this app (e.g. `cypher-shell`), they're just not exposed through any menu a superuser can reach. |
+| Admin | `cmdb_admin` | `cmdb_admin` | Everything superuser can, plus the entire **Admin** sidebar group: **Graph Explorer** (free-form Cypher, canvas Inspector, "+ Node"/"+ Relationship"), **Manage Users**, and **Backup & Restore**. **Menu Settings** is the one item in that group every profile gets, since it's a display preference, not a permission. |
 
-Both example users are created with `CHANGE REQUIRED`, so change their demo
-passwords on first login. `cmdb_admin` is deliberately scoped to *this
-database's* data and schema — it does not include DBMS-level privileges like
-user/role management or other databases, even though the app calls it
-"admin".
+Each tier is a superset of the one before it — Neo4j privileges are additive
+across a user's roles, so a user holding a higher tier's role automatically
+gets everything the lower tiers grant too. Note that superuser's extra
+Neo4j privileges and operator's are therefore invisible in the app itself
+right now (both land on identical business-screen-only UI); they only
+matter if that role is also used directly against Neo4j outside this app.
+
+All four example users are created with `CHANGE REQUIRED`, so change their
+demo passwords on first login. Only `cmdb_admin` carries DBMS-level
+privileges (`USER MANAGEMENT`/`ROLE MANAGEMENT`, so it can run the Manage
+Users screen) — the other three roles are scoped entirely to *this
+database's* data and schema, same as before.
+
+**First-login password change**: signing in with a `CHANGE REQUIRED`
+account (any of the four example users above, or a user an admin just
+created from the Manage Users screen) doesn't fail with a generic error —
+the **Sign in** bar swaps to a "Neo4j requires a new password for `<user>`"
+form. Under the hood, Neo4j authenticates the connection but rejects every
+query except one with `Neo.ClientError.Security.CredentialsExpired`; the app
+detects that specific status code (`isCredentialsExpiredError` in
+`app/src/lib/neo4j.js`) and runs the one query that *is* still allowed,
+`ALTER CURRENT USER SET PASSWORD FROM $old TO $new` — self-service, so it
+needs no admin privileges — then reconnects with the new password (the old
+one is invalid immediately, and the existing driver's cached auth token
+still has it) before continuing the normal sign-in flow.
 
 **How the app picks it up**: after signing in, the app runs `SHOW CURRENT
 USER` against the `system` database to read the account's roles, maps them
-to a profile, and shows a badge next to the connection status (e.g. `alice ·
-admin` or `bob · read-only`). For a read-only profile it hides the *"+
-Node"*/*"+ Relationship"* buttons, renders the Inspector's properties as
-plain text instead of editable fields, and warns inline in the query bar if
-a typed query looks like a write. None of that is what actually stops a
-write — `GRANT WRITE ON GRAPH neo4j TO cmdb_admin` (and its absence for
-`cmdb_readonly`) is what stops it; Neo4j will reject a `CREATE`/`SET`/`DELETE`
-from a `cmdb_readonly` session regardless of what the browser tried to do.
+to a profile via `deriveCmdbProfile`/`getCurrentUserProfile` in
+`app/src/lib/neo4j.js`, and shows a badge next to the connection status
+(e.g. `alice · Superuser` or `bob · Read-only`). Below `readonly`, the app
+hides write controls (the *"+ New"*/*Edit*/*Delete* buttons on business
+screens); below `admin`, it hides the entire **Admin** sidebar group —
+Graph Explorer, Manage Users, and Backup & Restore — and redirects away
+from `/graph`, `/users`, and `/backup-restore` if any of them is navigated
+to directly. None of that is what actually stops a write or a
+user-management call — the `GRANT`/`REVOKE` privileges in
+`cypher/00_security_setup.cypher` are what stop it; Neo4j will reject a
+`CREATE`/`SET`/`DELETE`, or a `CREATE USER`/`GRANT ROLE`, from a session
+that lacks the matching privilege regardless of what the browser tried to do.
 
 **Role-detection fallbacks** (see `getCurrentUserProfile` in
-`app/src/lib/neo4j.js`): if the account has no custom roles, or `SHOW
-CURRENT USER` isn't available at all, the app defaults to showing the admin
-UI rather than silently locking the account out of its own data — a
-mis-detected profile only affects what the UI *offers*, never what Neo4j
-actually *allows*, so failing open here doesn't create a security hole, only
-a UX one (a write attempt that Neo4j rejects still surfaces as a normal error
-toast).
+`app/src/lib/neo4j.js`): if the account has no custom roles, roles that
+match none of the four known tiers, or `SHOW CURRENT USER` isn't available
+at all, the app fails towards the extreme that keeps data safe rather than
+silently locking the account out — empty roles or an unsupported `SHOW
+CURRENT USER` fail open to `admin` (Community Edition has no custom roles at
+all, see below), while roles that exist but don't match any tier fail closed
+to `readonly`. A mis-detected profile only affects what the UI *offers*,
+never what Neo4j actually *allows*, so failing open here doesn't create a
+security hole, only a UX one (a write or admin action Neo4j rejects still
+surfaces as a normal error toast/form error).
 
 **Community Edition**: custom roles/privileges (`CREATE ROLE`, `GRANT ...`)
 require Enterprise Edition or Aura. On Community Edition every authenticated
@@ -200,6 +256,17 @@ user is effectively unrestricted, so there's no real "read-only account" to
 create — running the app against Community Edition, everyone gets the admin
 profile (matching the "empty roles list" fallback above), because there's
 nothing for the UI to meaningfully restrict.
+
+**Manage Users** (admin only, `app/src/pages/UserManagementPage.jsx`): lists
+every Neo4j user via `SHOW USERS`, with a form to create a user (username +
+password + one of the four profiles), edit an existing user (change profile
+and/or reset password), or delete one. Profile changes revoke the user's
+previous CMDB role before granting the new one, so nobody ends up holding two
+of the four roles at once. Administration commands support parameters for
+usernames/role names (unlike labels/relationship types in ordinary Cypher),
+so these calls are plain parameterized Cypher — no identifier allow-list
+needed. An admin can't delete their own account from this screen (disabled in
+the UI; Neo4j also rejects it server-side).
 
 ## 4. Run the visualization app
 
@@ -220,31 +287,37 @@ browser tab's memory; for anything beyond local/demo use, put a thin API
 layer in front (see note in `app/src/lib/neo4j.js`) instead of shipping
 credentials to the client.
 
-The app has two areas, both listed in the left sidebar once you're signed in:
-**Graph Explorer** (free-form querying/visualization) and one **business
-screen per node type** (list/search/create/edit/export, the "line of
-business" view of the same data). Routing is client-side only (`HashRouter`
-— URLs look like `#/type/application`), so it works from a static file
-server with no rewrite rules.
+The app has one **business screen per node type** in the left sidebar once
+you're signed in (list/search/create/edit/export, the "line of business"
+view of the data), grouped by category same as the data model tables above,
+plus one more category at the very end, **Admin**, holding **Graph
+Explorer** (free-form querying/visualization), **Manage Users**, **Menu
+Settings**, and **Backup & Restore** — styled and grouped exactly like any
+other sidebar category, not called out as special. Everything in that group
+is admin-only except Menu Settings, which every profile gets since it's a
+display preference rather than a permission. Routing is
+client-side only (`HashRouter` — URLs look like `#/type/application`), so it
+works from a static file server with no rewrite rules.
 
 ### Graph Explorer
 
+Admin only — hidden from the sidebar (and its route redirects away if
+visited directly) for every other profile, see section 3. Since only admins
+ever reach it, every control below is always fully enabled for whoever's
+looking at it:
+
 - **Query bar**: run any of the preset Cypher queries (topology views,
   dependency graphs, open incidents, ticket boards…) or type your own
-  Cypher and hit Run. Available to both profiles; for a read-only profile,
-  a query that looks like a write is flagged inline and the Run button is
-  disabled (see section 3) rather than sending it and waiting for Neo4j to
-  reject it.
+  Cypher and hit Run.
 - **Click a node or relationship** to open the Inspector: edit properties
   in place, add an extra label to a node, or delete the node/relationship
-  (node delete detaches all its relationships). Read-only profiles get a
-  view-only version of the same panel.
+  (node delete detaches all its relationships).
 - **+ Node**: pick one or more labels (CMDB ones are suggested, or type your
   own) and fill in properties; `id` is required since it's the unique key
-  the rest of the model relies on. Admin only.
+  the rest of the model relies on.
 - **+ Relationship**: pick a source/target node from what's currently on
   the canvas, a type (CMDB types suggested via autocomplete), and optional
-  properties. Admin only.
+  properties.
 
 All writes go straight to the database via parameterized Cypher — labels and
 relationship types can't be parameterized in Cypher, so `src/lib/neo4j.js`
@@ -265,9 +338,29 @@ screen.
 - **List + search**: a table of that type's nodes (columns from the
   registry), with a client-side filter box across all visible columns.
 - **Export CSV**: exports the currently filtered rows using the same column
-  set as the table.
-- **Create / Edit** (admin only, same gating as the Graph Explorer):
-  a form built from the registry's field list, plus one relationship picker
+  set as the table (display labels as headers).
+- **Get CSV template**: downloads a header-only CSV listing every one of the
+  type's *fields* (not just the table's display columns) using their raw
+  property keys, e.g. `ipAddress` rather than "IP address" - fill it in and
+  it's ready for Import CSV. Available to every profile (it's just a
+  header, no data).
+- **Import CSV** (operator, superuser, and admin): bulk-creates nodes from a
+  CSV file - one row per node, using `createNode` under the hood (same
+  number/date/datetime coercion as the Create/Edit form). Headers are
+  matched against the type's fields by either property key (the template's
+  headers) or display label (Export CSV's headers), case-insensitively, so
+  a template you filled in *or* a previously exported CSV both import
+  cleanly; unrecognized columns are ignored. Rows missing a required field
+  fail validation before any write; everything else is attempted, and a
+  summary ("created N of M, K failed: …") lists per-row failures (e.g. a
+  duplicate `id`, which Neo4j's uniqueness constraint rejects). Scoped to
+  properties only - relationships aren't part of the CSV format, since
+  resolving a relationship target from a spreadsheet cell isn't a well-defined
+  operation the way autocomplete-picking one in the form is; use Edit
+  afterwards for those.
+- **Create** (operator, superuser, and admin — i.e. every profile above
+  read-only) / **Edit** (every profile, including read-only — see below): a
+  form built from the registry's field list, plus one relationship picker
   per configured relationship. Relationship pickers use **autocomplete** -
   type 2+ characters and it searches the `cmdb_fulltext` index (optionally
   restricted to the relevant labels, e.g. a Physical Server's "Location"
@@ -277,16 +370,72 @@ screen.
   show one picker; multi-valued ones (e.g. "depends on") show existing picks
   as removable chips plus a picker to add more. Saving diffs the selection
   against what was there before and only creates/deletes the relationships
-  that actually changed.
-- **Delete** (admin only): detaches and deletes the node, with a confirm
-  prompt.
-- **Detail** (every row, both profiles): opens a modal with that node's
+  that actually changed. For a **read-only** profile, the same Edit button
+  opens the same modal in view mode instead of being hidden: every field and
+  relationship picker is disabled (chips show with no remove button, no
+  autocomplete search box), the title reads "View `<Type>`" instead of
+  "Edit `<Type>`", and the Save button is replaced by a single **View**
+  button that just closes the modal — there's no Cancel next to it, since
+  nothing was ever editable to cancel. `EntityFormModal.jsx`'s `readOnly`
+  prop drives this; the write itself is still blocked server-side by Neo4j
+  regardless (see section 3), this only changes what the modal *offers*.
+- **Delete** (operator, superuser, and admin): detaches and deletes the
+  node, with a confirm prompt.
+- **Graph** (every row, every profile): opens a modal with that node's
   dependency graph, starting from its 1-hop neighborhood. It's exploratory,
   not editable - **click any node in the modal to expand its own
   connections**, merged into what's already shown, so you can walk the graph
   outward (e.g. from a Ticket → the Incident it tracks → the Application it
   impacts → the Team that owns it) without leaving the modal or re-running a
   query by hand.
+
+### Manage Users
+
+Admin only — hidden from the sidebar (and its route redirects away if
+visited directly) for every other profile. Lists every Neo4j user (`SHOW
+USERS`), with **+ New User** (username, password, and one of the four
+profiles), **Edit** (change profile and/or reset password), and **Delete**.
+See section 3 for the underlying `CREATE USER`/`ALTER USER`/`DROP USER`/
+`GRANT ROLE`/`REVOKE ROLE` calls.
+
+### Menu Settings
+
+Every profile. A checkbox per entity type (grouped by category, same
+grouping as the sidebar itself), "Show all"/"Hide all", to declutter which
+business screens actually show up in *your* sidebar. This is a per-browser
+preference (`localStorage`, see `MenuPrefsContext.jsx`), not a permission —
+a hidden type is still reachable directly by URL and completely unaffected
+by what Neo4j will let the account do.
+
+### Backup & Restore
+
+Admin only — hidden from the sidebar (and its route redirects away if
+visited directly) for every other profile, same as Graph Explorer and
+Manage Users. Same checkbox-per-type picker as Menu Settings, but for bulk
+data movement instead of menu display:
+
+- **Export ZIP**: for the selected types, bundles one `<type>.csv` per type
+  (every field, keyed headers — the same machine-readable format
+  `Get CSV template` produces on each business screen) plus a
+  `relationships.csv` covering edges that run directly between two of the
+  selected types (`relType,fromId,toId`), into a single ZIP built
+  client-side with `jszip`.
+- **Restore ZIP**: reads a ZIP built the same way — imports every
+  recognized `<type>.csv` first (node creation across types has no ordering
+  dependency), then `relationships.csv` last, so the ids it references
+  already exist. Unrecognized entries (a foreign zip, or a type key this
+  app version doesn't know) are ignored rather than failing the whole
+  restore. Per-type and relationship results (created vs. failed counts)
+  are shown after the restore finishes.
+
+Like single-type CSV import, this is additive (`CREATE`, not `MERGE`) and
+scoped to node properties + inter-type relationships only — it doesn't
+attempt to reconcile or diff against what's already in the database, so
+restoring into overlapping data reports per-row failures (duplicate `id`s,
+rejected by the uniqueness constraints) rather than overwriting anything.
+`app/src/lib/backup.js` holds the export/restore orchestration;
+`app/src/lib/csvImport.js` holds the row-level CSV → node/relationship
+logic shared with the single-type Import CSV button.
 
 ## 5. Extending the model further
 
@@ -298,23 +447,31 @@ asset/warranty tracking (`:Vendor`/`:Contract`), first-class
 with `OWNS_DATA`/`CONSUMES_DATA`/`CLASSIFIED_AS`). See the tables and diagram
 in section 1, and cookbook sections E–I for example queries.
 
-Further ideas that still fit this schema without restructuring it:
-- `:Subnet`/`:VLAN` nodes above `:IPAddress` for full IPAM (currently IPs are
-  flat; grouping them would let you query capacity per subnet).
-- `:Approval` as its own node (instead of a single `APPROVED_BY` edge) if a
-  change ever needs multi-step/multi-approver sign-off with per-step status.
-- `:CostCenter`/`:Budget` linked from `:Application` or `:Team` for
-  chargeback/showback reporting alongside the existing `Contract.cost`.
-- Versioned/point-in-time snapshots (e.g. `:Application` -[:HAD_VERSION]->
-  `:ApplicationVersion {validFrom, validTo}`) if you need historical CMDB
-  state rather than just "current".
-- `:DataFlow` edges between `:Data` assets (instead of only `Application`
-  -> `Data`) if you need to model ETL/replication pipelines that move data
-  between stores independently of the applications that own them.
+A second batch, also now implemented:
+- Full IPAM via `:Subnet`/`:VLAN` nodes above `:IPAddress` (`IN_SUBNET`,
+  `IN_VLAN`), so capacity-per-subnet is a traversal instead of a manual
+  count — cookbook section K.
+- `:Approval` as its own node, so a `:ChangeRequest` can carry a multi-step,
+  multi-approver sign-off chain (`HAS_APPROVAL`, `DECIDED_BY`) alongside the
+  original single `APPROVED_BY` edge, which is kept for the simple case —
+  cookbook section L.
+- `:CostCenter`/`:Budget` linked from `:Application` and `:Team` via
+  `CHARGED_TO`/`HAS_BUDGET`, for chargeback/showback reporting alongside the
+  existing `Contract.cost` — cookbook section M.
+- Versioned/point-in-time snapshots via `:Application` -[:HAD_VERSION]->
+  `:ApplicationVersion {validFrom, validTo}`, so "what version was live on
+  date X" is queryable instead of only "what version is it now" —
+  cookbook section N.
+- `:DataFlow` nodes modeling ETL/replication pipelines between `:Data`
+  assets (`SOURCE_DATA`/`TARGET_DATA`), independent of the applications that
+  own the data, plus `(:Application)-[:IMPLEMENTS]->(:DataFlow)` to record
+  which application actually runs a given pipeline — cookbook section O.
 
-TODO/Possible roadmap:
-- Add a logo
-- Add new data types (see above)
-- Add global export to CSV/JSON capability
-- Add import from CSV/JSON capability & downloadable templates
-- Embed the launch of neo4j backend (or document how to container it)
+No open "further ideas" are currently listed here — the two batches above
+cover every extension previously suggested. Anything genuinely new (e.g.
+`:Approval` gaining explicit multi-approver quorum rules, or `:DataFlow`
+edges between data assets independent of `:Application`) can be added the
+same way: schema in `01_constraints_and_indexes.cypher`, sample data +
+relationships in `02_sample_data.cypher`, cookbook queries in
+`03_sample_queries.cypher`, and a registry entry in
+`app/src/lib/nodeTypes.js`.

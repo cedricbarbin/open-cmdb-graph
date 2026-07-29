@@ -6,11 +6,10 @@ import {
   updateNodeProperties,
   createRelationship,
   deleteRelationship,
-  fetchRelated,
-  toNeo4jDate,
-  toNeo4jDateTime
+  fetchRelated
 } from '../lib/neo4j.js';
 import { captionForNode } from '../lib/graphModel.js';
+import { buildProperties } from '../lib/formUtils.js';
 
 function slugify(text) {
   return String(text).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -41,18 +40,6 @@ function initEmptyRelValues(typeDef) {
   return out;
 }
 
-function buildProperties(typeDef, values) {
-  const out = {};
-  for (const field of typeDef.fields) {
-    const raw = values[field.key];
-    if (raw === undefined || raw === '') continue;
-    if (field.inputType === 'number') out[field.key] = Number(raw);
-    else if (field.inputType === 'date') out[field.key] = toNeo4jDate(raw);
-    else if (field.inputType === 'datetime') out[field.key] = toNeo4jDateTime(raw);
-    else out[field.key] = raw;
-  }
-  return out;
-}
 
 function createRelationshipForRel(elementId, rel, target, database) {
   return rel.direction === 'in'
@@ -102,7 +89,7 @@ function ScalarField({ field, value, onChange, disabled }) {
   return <input type={type} value={value ?? ''} onChange={(e) => onChange(e.target.value)} disabled={disabled} />;
 }
 
-export default function EntityFormModal({ typeDef, mode, initialNode, onClose, onSaved, database }) {
+export default function EntityFormModal({ typeDef, mode, initialNode, onClose, onSaved, database, readOnly = false }) {
   const [values, setValues] = useState(() => initFieldValues(typeDef, mode, initialNode));
   const [relValues, setRelValues] = useState(() => initEmptyRelValues(typeDef));
   const [loadingRelationships, setLoadingRelationships] = useState(mode === 'edit' && typeDef.relationships.length > 0);
@@ -174,6 +161,10 @@ export default function EntityFormModal({ typeDef, mode, initialNode, onClose, o
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (readOnly) {
+      onClose();
+      return;
+    }
     setFormError(null);
 
     for (const field of typeDef.fields) {
@@ -215,8 +206,10 @@ export default function EntityFormModal({ typeDef, mode, initialNode, onClose, o
     }
   }
 
+  const title = readOnly ? `View ${typeDef.label}` : `${mode === 'create' ? 'New' : 'Edit'} ${typeDef.label}`;
+
   return (
-    <Modal title={`${mode === 'create' ? 'New' : 'Edit'} ${typeDef.label}`} onClose={onClose} wide>
+    <Modal title={title} onClose={onClose} wide>
       <form onSubmit={handleSubmit} className="entity-form">
         {typeDef.fields.map((field) => (
           <div className="form-field" key={field.key}>
@@ -226,11 +219,16 @@ export default function EntityFormModal({ typeDef, mode, initialNode, onClose, o
                 type="text"
                 value={values.id ?? ''}
                 onChange={(e) => handleIdChange(e.target.value)}
-                disabled={mode === 'edit' && field.readOnlyOnEdit}
+                disabled={readOnly || (mode === 'edit' && field.readOnlyOnEdit)}
                 placeholder={`e.g. ${typeDef.idPrefix}-example`}
               />
             ) : (
-              <ScalarField field={field} value={values[field.key]} onChange={(v) => handleFieldChange(field, v)} />
+              <ScalarField
+                field={field}
+                value={values[field.key]}
+                onChange={(v) => handleFieldChange(field, v)}
+                disabled={readOnly}
+              />
             )}
           </div>
         ))}
@@ -245,9 +243,13 @@ export default function EntityFormModal({ typeDef, mode, initialNode, onClose, o
                 <div className="chip-row">
                   <span className="chip chip-selected">
                     {relValues[rel.key].selected.caption}
-                    <button type="button" className="chip-remove" onClick={() => handleRelClearOne(rel.key)}>&times;</button>
+                    {!readOnly && (
+                      <button type="button" className="chip-remove" onClick={() => handleRelClearOne(rel.key)}>&times;</button>
+                    )}
                   </span>
                 </div>
+              ) : readOnly ? (
+                <p className="readonly-note">—</p>
               ) : (
                 <NodeAutocomplete
                   targetLabels={rel.targetLabels}
@@ -262,17 +264,24 @@ export default function EntityFormModal({ typeDef, mode, initialNode, onClose, o
                   {(relValues[rel.key]?.selected ?? []).map((item) => (
                     <span className="chip chip-selected" key={item.elementId}>
                       {item.caption}
-                      <button type="button" className="chip-remove" onClick={() => handleRelRemoveMany(rel.key, item.elementId)}>&times;</button>
+                      {!readOnly && (
+                        <button type="button" className="chip-remove" onClick={() => handleRelRemoveMany(rel.key, item.elementId)}>&times;</button>
+                      )}
                     </span>
                   ))}
+                  {readOnly && (relValues[rel.key]?.selected ?? []).length === 0 && (
+                    <span className="readonly-note">—</span>
+                  )}
                 </div>
-                <NodeAutocomplete
-                  targetLabels={rel.targetLabels}
-                  database={database}
-                  placeholder={`Add ${rel.label.toLowerCase()}…`}
-                  excludeIds={(relValues[rel.key]?.selected ?? []).map((i) => i.elementId)}
-                  onSelect={(node) => handleRelAddMany(rel.key, node)}
-                />
+                {!readOnly && (
+                  <NodeAutocomplete
+                    targetLabels={rel.targetLabels}
+                    database={database}
+                    placeholder={`Add ${rel.label.toLowerCase()}…`}
+                    excludeIds={(relValues[rel.key]?.selected ?? []).map((i) => i.elementId)}
+                    onSelect={(node) => handleRelAddMany(rel.key, node)}
+                  />
+                )}
               </>
             )}
           </div>
@@ -281,9 +290,9 @@ export default function EntityFormModal({ typeDef, mode, initialNode, onClose, o
         {formError && <p className="form-error">{formError}</p>}
 
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>Cancel</button>
+          {!readOnly && <button type="button" onClick={onClose}>Cancel</button>}
           <button type="submit" disabled={saving || loadingRelationships}>
-            {saving ? 'Saving…' : 'Save'}
+            {readOnly ? 'View' : (saving ? 'Saving…' : 'Save')}
           </button>
         </div>
       </form>
