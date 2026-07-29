@@ -12,7 +12,8 @@ cmdb/
 │   ├── 01_constraints_and_indexes.cypher   schema: uniqueness constraints, indexes, fulltext index
 │   ├── 02_sample_data.cypher               ~90 nodes / ~160 relationships of realistic sample data
 │   └── 03_sample_queries.cypher            read/write query cookbook (also used as app presets)
-└── app/                                    React + @neo4j-nvl/react + neo4j-driver
+├── app/                                    React + @neo4j-nvl/react + neo4j-driver
+└── ontology/                               create-context-graph ontology (optional, unrelated to the app - see ontology/README.md)
 ```
 
 ## 1. Data model

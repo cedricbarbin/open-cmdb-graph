@@ -32,7 +32,13 @@
       "Bash(node *)",
       "Bash(npm audit *)",
       "Bash(grep *)",
-      "Bash(awk '{print $5, $9}')"
+      "Bash(awk '{print $5, $9}')",
+      "Bash(python3 -c ' *)",
+      "Bash(pip3 install *)",
+      "Bash(python3 -m pip install --quiet --user pyyaml)",
+      "Bash(ruby -ryaml -e ' *)",
+      "Bash(sed -E \"s/^\\\\s*\\([A-Za-z]+\\):\\\\s*\\\\{ color: '\\(#[0-9A-Fa-f]+\\)'.*/\\\\1: \\\\2/\")",
+      "Read(//tmp/**)"
     ]
   },
   "hooks": {

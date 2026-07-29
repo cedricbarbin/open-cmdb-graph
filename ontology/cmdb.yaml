@@ -1,0 +1,1273 @@
+# Open CMDB Graph ontology for create-context-graph (https://create-context-graph.dev/)
+#
+# Extends _base.yaml (POLE+O: Person, Organization, Location, Event, Object)
+# with this project's actual data model. Every entity/property/relationship
+# below mirrors app/src/lib/nodeTypes.js and cypher/01_constraints_and_indexes.cypher
+# 1:1 - this file is generated FROM the real schema, not an approximation of
+# it, so demo data produced from it is structurally compatible with the
+# Open CMDB Graph app (same labels, same property names, same relationship
+# types). node_colors below reuse the exact hex values from
+# app/src/lib/graphModel.js, so a graph rendered by this ontology's tooling
+# and one rendered by the app's own Graph Explorer look the same.
+#
+# Assumption worth double-checking against the actual create-context-graph
+# schema docs: `type: date` is used below for calendar-only fields
+# (purchaseDate, endDate, validFrom, ...) as distinct from `type: datetime`.
+# Neither _base.yaml nor software-engineering.yaml happens to exercise a
+# bare `date` field, so this hasn't been confirmed against a working
+# example - if the tool rejects it, switch those fields to `datetime`.
+
+inherits: _base
+
+domain:
+  id: cmdb
+  name: Open CMDB Graph
+  description: >-
+    Configuration management database for an IT organization: physical and
+    virtual infrastructure, containers and applications, data assets and
+    classification, network/IPAM, supervision/monitoring, vendors and
+    contracts, cost allocation, and ITSM (incidents, tickets, change
+    requests with multi-step approvals).
+  tagline: "AI-powered Infrastructure & ITSM Intelligence"
+  emoji: "\U0001F5C4"
+
+entity_types:
+  # ------------------------------------------------------------------
+  # Locations
+  # ------------------------------------------------------------------
+  - label: Datacenter
+    pole_type: LOCATION
+    subtype: DATACENTER
+    color: "#7C4DFF"
+    icon: building-2
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: provider
+        type: string
+      - name: city
+        type: string
+      - name: country
+        type: string
+      - name: address
+        type: string
+      - name: tier
+        type: string
+
+  - label: CloudRegion
+    pole_type: LOCATION
+    subtype: CLOUD_REGION
+    color: "#B388FF"
+    icon: cloud
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: provider
+        type: string
+      - name: region
+        type: string
+      - name: country
+        type: string
+
+  # ------------------------------------------------------------------
+  # Compute
+  # ------------------------------------------------------------------
+  - label: PhysicalServer
+    pole_type: OBJECT
+    subtype: PHYSICAL_SERVER
+    color: "#FF7043"
+    icon: server
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: hostname
+        type: string
+        required: true
+      - name: ipAddress
+        type: string
+      - name: os
+        type: string
+      - name: osVersion
+        type: string
+      - name: status
+        type: string
+        enum: [active, maintenance, decommissioned]
+      - name: environment
+        type: string
+        enum: [prod, staging, dev]
+      - name: cpuCores
+        type: integer
+      - name: ramGB
+        type: integer
+      - name: diskGB
+        type: integer
+      - name: vendor
+        type: string
+      - name: model
+        type: string
+      - name: serialNumber
+        type: string
+      - name: rackPosition
+        type: string
+      - name: purchaseDate
+        type: date
+      - name: warrantyEnd
+        type: date
+
+  - label: VirtualServer
+    pole_type: OBJECT
+    subtype: VIRTUAL_SERVER
+    color: "#FFA726"
+    icon: cpu
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: hostname
+        type: string
+        required: true
+      - name: ipAddress
+        type: string
+      - name: os
+        type: string
+      - name: osVersion
+        type: string
+      - name: status
+        type: string
+        enum: [active, maintenance, decommissioned]
+      - name: environment
+        type: string
+        enum: [prod, staging, dev]
+      - name: cpuCores
+        type: integer
+      - name: ramGB
+        type: integer
+      - name: diskGB
+        type: integer
+      - name: hypervisor
+        type: string
+      - name: vCpu
+        type: integer
+
+  - label: Container
+    pole_type: OBJECT
+    subtype: CONTAINER
+    color: "#26A69A"
+    icon: box
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: image
+        type: string
+      - name: imageTag
+        type: string
+      - name: status
+        type: string
+        enum: [running, stopped]
+      - name: ports
+        type: string
+      - name: cpuLimit
+        type: float
+      - name: memLimitMB
+        type: integer
+
+  # ------------------------------------------------------------------
+  # Applications & Data
+  # ------------------------------------------------------------------
+  - label: Application
+    pole_type: OBJECT
+    subtype: APPLICATION
+    color: "#42A5F5"
+    icon: app-window
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: version
+        type: string
+      - name: criticality
+        type: string
+        enum: [low, medium, high, critical]
+      - name: environment
+        type: string
+        enum: [prod, staging, dev]
+      - name: businessService
+        type: string
+      - name: description
+        type: string
+
+  - label: DataFlow
+    pole_type: OBJECT
+    subtype: DATA_PIPELINE
+    color: "#7E57C2"
+    icon: workflow
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: type
+        type: string
+        enum: [etl, replication, streaming, batch]
+      - name: schedule
+        type: string
+
+  - label: Data
+    pole_type: OBJECT
+    subtype: DATA_ASSET
+    color: "#5C6BC0"
+    icon: database
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: type
+        type: string
+        enum: [database, cache, log-store, file-store, queue]
+      - name: format
+        type: string
+      - name: volumeGB
+        type: integer
+      - name: environment
+        type: string
+        enum: [prod, staging, dev]
+
+  # ------------------------------------------------------------------
+  # Network & Assets
+  # ------------------------------------------------------------------
+  - label: NetworkInterface
+    pole_type: OBJECT
+    subtype: NETWORK_INTERFACE
+    color: "#78909C"
+    icon: network
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: type
+        type: string
+        enum: [data, management]
+      - name: speedMbps
+        type: integer
+      - name: mac
+        type: string
+
+  - label: IPAddress
+    pole_type: OBJECT
+    subtype: IP_ADDRESS
+    color: "#546E7A"
+    icon: hash
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: address
+        type: string
+        required: true
+        unique: true
+      - name: version
+        type: string
+        enum: [v4, v6]
+      - name: type
+        type: string
+        enum: [private, public]
+      - name: allocation
+        type: string
+        enum: [static, dhcp]
+
+  - label: VLAN
+    pole_type: OBJECT
+    subtype: VLAN
+    color: "#607D8B"
+    icon: waypoints
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: vlanId
+        type: integer
+        required: true
+      - name: description
+        type: string
+
+  - label: Subnet
+    pole_type: OBJECT
+    subtype: SUBNET
+    color: "#455A64"
+    icon: layers
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: cidr
+        type: string
+        required: true
+        unique: true
+      - name: gateway
+        type: string
+      - name: description
+        type: string
+
+  # ------------------------------------------------------------------
+  # Monitoring
+  # ------------------------------------------------------------------
+  - label: Probe
+    pole_type: OBJECT
+    subtype: MONITORING_PROBE
+    color: "#00BFA5"
+    icon: activity
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: checkType
+        type: string
+        required: true
+        enum: [command, process, port]
+      - name: command
+        type: string
+      - name: process
+        type: string
+      - name: port
+        type: integer
+      - name: intervalSeconds
+        type: integer
+      - name: timeoutSeconds
+        type: integer
+      - name: alertCondition
+        type: string
+      - name: alertThreshold
+        type: integer
+      - name: severity
+        type: string
+        enum: [SEV1, SEV2, SEV3, SEV4]
+      - name: status
+        type: string
+        enum: [ok, warning, critical, unknown, disabled]
+
+  # ------------------------------------------------------------------
+  # IT Master Data
+  # ------------------------------------------------------------------
+  - label: DataCategory
+    pole_type: OBJECT
+    subtype: DATA_CLASSIFICATION
+    color: "#3949AB"
+    icon: shield
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: description
+        type: string
+      - name: sensitivity
+        type: string
+        enum: [public, internal, confidential, restricted]
+      - name: regulatoryScope
+        type: string
+        enum: [none, GDPR, PCI-DSS, SOX]
+
+  - label: Environment
+    pole_type: OBJECT
+    subtype: ENVIRONMENT
+    color: "#26C6DA"
+    icon: sliders-horizontal
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: description
+        type: string
+
+  - label: SLA
+    pole_type: OBJECT
+    subtype: SLA
+    color: "#D4E157"
+    icon: file-check
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: uptimeTargetPct
+        type: float
+      - name: responseTimeMinutes
+        type: integer
+      - name: resolutionTimeHours
+        type: integer
+
+  # ------------------------------------------------------------------
+  # Organization
+  # ------------------------------------------------------------------
+  - label: Team
+    pole_type: ORGANIZATION
+    subtype: TEAM
+    color: "#8D6E63"
+    icon: users
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: email
+        type: string
+
+  - label: Person
+    pole_type: PERSON
+    color: "#66BB6A"
+    icon: user
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: email
+        type: string
+        required: true
+        unique: true
+      - name: role
+        type: string
+
+  - label: Vendor
+    pole_type: ORGANIZATION
+    subtype: VENDOR
+    color: "#8D6E63"
+    icon: truck
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: supportPhone
+        type: string
+      - name: supportEmail
+        type: string
+      - name: website
+        type: string
+
+  - label: Contract
+    pole_type: OBJECT
+    subtype: CONTRACT
+    color: "#A1887F"
+    icon: file-text
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: contractNumber
+        type: string
+        required: true
+      - name: type
+        type: string
+        enum: [maintenance, support, lease]
+      - name: startDate
+        type: date
+      - name: endDate
+        type: date
+      - name: cost
+        type: float
+      - name: currency
+        type: string
+
+  # ------------------------------------------------------------------
+  # Finance
+  # ------------------------------------------------------------------
+  - label: CostCenter
+    pole_type: ORGANIZATION
+    subtype: COST_CENTER
+    color: "#FDD835"
+    icon: wallet
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: code
+        type: string
+        required: true
+        unique: true
+
+  - label: Budget
+    pole_type: OBJECT
+    subtype: BUDGET
+    color: "#FBC02D"
+    icon: dollar-sign
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: amount
+        type: float
+        required: true
+      - name: currency
+        type: string
+      - name: fiscalYear
+        type: integer
+
+  # ------------------------------------------------------------------
+  # ITSM
+  # ------------------------------------------------------------------
+  - label: Incident
+    pole_type: EVENT
+    subtype: INCIDENT
+    color: "#EF5350"
+    icon: alert-triangle
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: title
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: severity
+        type: string
+        enum: [SEV1, SEV2, SEV3, SEV4]
+      - name: status
+        type: string
+        enum: [open, investigating, resolved, closed]
+      - name: createdAt
+        type: datetime
+      - name: resolvedAt
+        type: datetime
+
+  - label: Ticket
+    pole_type: EVENT
+    subtype: TICKET
+    color: "#EC407A"
+    icon: ticket
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: title
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: type
+        type: string
+        enum: [incident, change, request]
+      - name: status
+        type: string
+        enum: [open, in_progress, resolved, closed]
+      - name: priority
+        type: string
+        enum: [low, medium, high, urgent]
+      - name: createdAt
+        type: datetime
+      - name: updatedAt
+        type: datetime
+      - name: dueDate
+        type: date
+
+  - label: ChangeRequest
+    pole_type: EVENT
+    subtype: CHANGE_REQUEST
+    color: "#AB47BC"
+    icon: git-pull-request
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: title
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: status
+        type: string
+        enum: [draft, approved, scheduled, implemented, failed, rolled_back]
+      - name: riskLevel
+        type: string
+        enum: [low, medium, high]
+      - name: scheduledStart
+        type: datetime
+      - name: scheduledEnd
+        type: datetime
+      - name: implementedAt
+        type: datetime
+
+  - label: ApplicationVersion
+    pole_type: EVENT
+    subtype: APPLICATION_VERSION
+    color: "#64B5F6"
+    icon: tag
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: version
+        type: string
+        required: true
+      - name: validFrom
+        type: date
+      - name: validTo
+        type: date
+      - name: changelog
+        type: string
+
+  - label: Approval
+    pole_type: EVENT
+    subtype: APPROVAL
+    color: "#CE93D8"
+    icon: check-circle
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: step
+        type: integer
+        required: true
+      - name: status
+        type: string
+        required: true
+        enum: [pending, approved, rejected]
+      - name: comment
+        type: string
+      - name: decidedAt
+        type: datetime
+
+relationships:
+  # Compute topology
+  - type: LOCATED_IN
+    source: PhysicalServer
+    target: Datacenter
+  - type: HOSTED_ON
+    source: VirtualServer
+    target: PhysicalServer
+  - type: LOCATED_IN
+    source: VirtualServer
+    target: CloudRegion
+  - type: RUNS_ON
+    source: Container
+    target: PhysicalServer
+  - type: RUNS_ON
+    source: Container
+    target: VirtualServer
+  - type: DEPLOYED_ON
+    source: Application
+    target: Container
+  - type: DEPLOYED_ON
+    source: Application
+    target: VirtualServer
+  - type: DEPENDS_ON
+    source: Application
+    target: Application
+
+  # Organization
+  - type: OWNS
+    source: Team
+    target: Application
+  - type: MANAGES
+    source: Team
+    target: PhysicalServer
+  - type: MEMBER_OF
+    source: Person
+    target: Team
+  - type: CHARGED_TO
+    source: Application
+    target: CostCenter
+  - type: CHARGED_TO
+    source: Team
+    target: CostCenter
+  - type: HAS_BUDGET
+    source: CostCenter
+    target: Budget
+
+  # ITSM
+  - type: IMPACTS
+    source: Incident
+    target: PhysicalServer
+  - type: IMPACTS
+    source: Incident
+    target: VirtualServer
+  - type: IMPACTS
+    source: Incident
+    target: Container
+  - type: IMPACTS
+    source: Incident
+    target: Application
+  - type: IMPACTS
+    source: Incident
+    target: Data
+  - type: REPORTED_BY
+    source: Incident
+    target: Person
+  - type: TRACKS
+    source: Ticket
+    target: Incident
+  - type: CONCERNS
+    source: Ticket
+    target: Application
+  - type: CONCERNS
+    source: Ticket
+    target: Data
+  - type: ASSIGNED_TO
+    source: Ticket
+    target: Person
+  - type: OPENED_BY
+    source: Ticket
+    target: Person
+  - type: RELATES_TO
+    source: Ticket
+    target: ChangeRequest
+  - type: CONCERNS
+    source: ChangeRequest
+    target: Application
+  - type: REQUESTED_BY
+    source: ChangeRequest
+    target: Person
+  - type: ASSIGNED_TO
+    source: ChangeRequest
+    target: Person
+  - type: APPROVED_BY
+    source: ChangeRequest
+    target: Person
+  - type: HAS_APPROVAL
+    source: ChangeRequest
+    target: Approval
+  - type: DECIDED_BY
+    source: Approval
+    target: Person
+  - type: HAD_VERSION
+    source: Application
+    target: ApplicationVersion
+
+  # Network / IPAM
+  - type: HAS_INTERFACE
+    source: PhysicalServer
+    target: NetworkInterface
+  - type: HAS_IP
+    source: NetworkInterface
+    target: IPAddress
+  - type: IN_SUBNET
+    source: IPAddress
+    target: Subnet
+  - type: IN_VLAN
+    source: Subnet
+    target: VLAN
+
+  # Vendors / contracts
+  - type: SUPPLIED_BY
+    source: PhysicalServer
+    target: Vendor
+  - type: COVERED_BY
+    source: PhysicalServer
+    target: Contract
+  - type: PROVIDED_BY
+    source: Contract
+    target: Vendor
+
+  # Environments / SLAs
+  - type: IN_ENVIRONMENT
+    source: PhysicalServer
+    target: Environment
+  - type: IN_ENVIRONMENT
+    source: VirtualServer
+    target: Environment
+  - type: IN_ENVIRONMENT
+    source: Application
+    target: Environment
+  - type: IN_ENVIRONMENT
+    source: Data
+    target: Environment
+  - type: HAS_SLA
+    source: Application
+    target: SLA
+
+  # Data & data flows
+  - type: OWNS_DATA
+    source: Application
+    target: Data
+  - type: CONSUMES_DATA
+    source: Application
+    target: Data
+  - type: CLASSIFIED_AS
+    source: Data
+    target: DataCategory
+  - type: STORED_ON
+    source: Data
+    target: VirtualServer
+  - type: SOURCE_DATA
+    source: DataFlow
+    target: Data
+  - type: TARGET_DATA
+    source: DataFlow
+    target: Data
+  - type: IMPLEMENTS
+    source: Application
+    target: DataFlow
+
+  # Monitoring
+  - type: MONITORS
+    source: Probe
+    target: VirtualServer
+  - type: MONITORS
+    source: Probe
+    target: Container
+  - type: MONITORS
+    source: Probe
+    target: Application
+
+document_templates:
+  - id: incident_postmortem
+    name: Incident Postmortem
+    description: Post-incident review documents for resolved incidents
+    count: 6
+    prompt_template: |
+      Write a postmortem for incident {{incident.title}} (severity {{incident.severity}}).
+      Affected resources: {{impacted_list}}. Reported by: {{person.name}}.
+      Include a timeline, root cause, blast radius, and remediation actions.
+      Reference the owning team and any related change request.
+    required_entities: [Incident, Application, Person, Team]
+
+  - id: change_request_summary
+    name: Change Request Summary
+    description: CAB-style summaries for scheduled or implemented changes
+    count: 8
+    prompt_template: |
+      Write a change request summary for {{change.title}} concerning
+      {{application.name}}. Risk level: {{change.riskLevel}}. Requested by:
+      {{person.name}}. Include the rationale, rollback plan, scheduled
+      maintenance window, and approval chain status.
+    required_entities: [ChangeRequest, Application, Person, Approval]
+
+  - id: vendor_contract_renewal_email
+    name: Vendor Contract Renewal Email
+    description: Renewal/negotiation emails for expiring support contracts
+    count: 5
+    prompt_template: |
+      Write an email to {{vendor.name}} regarding renewal of contract
+      {{contract.contractNumber}}, which covers {{server_list}} and expires
+      {{contract.endDate}}. Include current terms, desired changes, and a
+      renewal deadline.
+    required_entities: [Contract, Vendor, PhysicalServer]
+
+  - id: capacity_planning_note
+    name: Capacity Planning Note
+    description: Internal notes on host/rack capacity ahead of growth
+    count: 5
+    prompt_template: |
+      Write a capacity planning note for {{datacenter.name}} prepared by
+      {{team.name}}. Summarize current allocation across physical hosts,
+      which hosts are nearing saturation, and recommended next steps.
+    required_entities: [Datacenter, PhysicalServer, VirtualServer, Team]
+
+  - id: data_classification_review
+    name: Data Classification Review
+    description: Compliance review notes for a data category
+    count: 4
+    prompt_template: |
+      Write a data classification review for {{data_category.name}} data
+      (sensitivity: {{data_category.sensitivity}}, regulatory scope:
+      {{data_category.regulatoryScope}}). List which applications own or
+      consume data in this category and any open compliance findings.
+    required_entities: [DataCategory, Data, Application]
+
+  - id: sla_compliance_report
+    name: SLA Compliance Report
+    description: Periodic SLA attainment reporting per application
+    count: 6
+    prompt_template: |
+      Write an SLA compliance report for {{application.name}}, tier
+      {{sla.name}} (uptime target {{sla.uptimeTargetPct}}%). Reference any
+      incidents in the reporting period and their impact on the SLA.
+    required_entities: [Application, SLA, Incident]
+
+decision_traces:
+  - id: change_approval_decision
+    task: "Decide whether to approve change request {{change.title}} for {{application.name}}"
+    steps:
+      - thought: "Assess the risk and blast radius of the change"
+        action: "Query the concerned application's DEPENDS_ON graph and current risk level"
+      - thought: "Check for conflicting or recent changes to the same resource"
+        action: "Query other change requests concerning the same application in the scheduled window"
+      - thought: "Verify all required approval steps are satisfied"
+        action: "Query the change request's HAS_APPROVAL chain and each step's status"
+      - thought: "Confirm rollback plan and scheduled maintenance window"
+        action: "Review scheduledStart/scheduledEnd and riskLevel"
+    outcome_template: "Decision: {{decision}}. Rationale: {{rationale}}"
+
+  - id: incident_triage
+    task: "Triage an incoming incident for {{application.name}} with initial severity {{incident.severity}}"
+    steps:
+      - thought: "Assess blast radius via application dependencies"
+        action: "Traverse DEPENDS_ON and DEPLOYED_ON to find downstream applications and the hosting chain"
+      - thought: "Check for correlated open incidents or recent changes"
+        action: "Query active incidents and change requests affecting the same resource"
+      - thought: "Identify the owning team"
+        action: "Query the OWNS/MANAGES relationships back to Team and its members"
+      - thought: "Assign final severity and route for response"
+        action: "Evaluate impact scope against the application's SLA tier"
+    outcome_template: "Severity: {{severity}}. Routed to: {{team}}. Blast radius: {{impacted_count}} applications"
+
+  - id: server_decommission_impact
+    task: "Assess the impact of decommissioning {{server.hostname}}"
+    steps:
+      - thought: "Find everything hosted on this server"
+        action: "Traverse HOSTED_ON/RUNS_ON/DEPLOYED_ON in reverse to list VMs, containers, and applications"
+      - thought: "Check for data assets stored on it"
+        action: "Query STORED_ON relationships from Data to this server"
+      - thought: "Check active contracts and warranty status"
+        action: "Query COVERED_BY/SUPPLIED_BY for contract and vendor context"
+      - thought: "Confirm no open incidents or scheduled changes reference it"
+        action: "Query IMPACTS and CONCERNS relationships for open incidents/changes"
+    outcome_template: "Decommission risk: {{risk}}. Migration needed for: {{dependent_count}} resources"
+
+  - id: contract_renewal_decision
+    task: "Decide whether to renew contract {{contract.contractNumber}} with {{vendor.name}}"
+    steps:
+      - thought: "Check which servers the contract currently covers"
+        action: "Query COVERED_BY relationships from PhysicalServer to this contract"
+      - thought: "Assess criticality of the covered infrastructure"
+        action: "Query applications deployed on the covered servers and their criticality"
+      - thought: "Compare cost against budget"
+        action: "Query the owning team's cost center and remaining budget"
+      - thought: "Check vendor support history"
+        action: "Query incidents involving the covered servers in the past year"
+    outcome_template: "Decision: {{decision}}. Renewal term: {{term}}. Estimated cost: {{cost}}"
+
+  - id: capacity_expansion_planning
+    task: "Plan capacity expansion for {{datacenter.name}} ahead of anticipated growth"
+    steps:
+      - thought: "Assess current allocation across physical hosts"
+        action: "Query each physical server's hosted VMs and sum allocated vCPU/RAM against host capacity"
+      - thought: "Identify hosts nearing saturation"
+        action: "Rank hosts by allocated-to-available ratio"
+      - thought: "Check environment split (prod vs staging vs dev)"
+        action: "Query IN_ENVIRONMENT relationships for the datacenter's servers"
+      - thought: "Review vendor lead time for new hardware"
+        action: "Query recent contracts and vendors for the datacenter"
+    outcome_template: "Expansion plan: {{plan}}. Hosts near capacity: {{host_count}}. Recommended new capacity: {{capacity}}"
+
+  - id: data_compliance_review
+    task: "Review regulatory exposure for {{data_category.name}} data"
+    steps:
+      - thought: "Find every application that owns or consumes this category of data"
+        action: "Query CLASSIFIED_AS then OWNS_DATA/CONSUMES_DATA back to Application"
+      - thought: "Check for recent incidents involving this data"
+        action: "Query IMPACTS relationships from Incident to Data in this category"
+      - thought: "Verify environment placement (prod data should not leak to dev)"
+        action: "Query IN_ENVIRONMENT for each data asset in this category"
+    outcome_template: "Compliance status: {{status}}. Applications in scope: {{app_count}}. Open findings: {{findings}}"
+
+  - id: probe_alert_response
+    task: "Respond to a {{probe.severity}} alert from probe {{probe.name}} monitoring {{target.name}}"
+    steps:
+      - thought: "Confirm the alert condition and how long it has been active"
+        action: "Query the probe's status, alertCondition, and alertThreshold"
+      - thought: "Assess what depends on the monitored resource"
+        action: "Traverse DEPENDS_ON/DEPLOYED_ON from the monitored Application/Container/VirtualServer"
+      - thought: "Check for a recent version change or deployment that could be the cause"
+        action: "Query ApplicationVersion/ChangeRequest history for the same resource"
+      - thought: "Decide whether to open an incident"
+        action: "Compare severity and blast radius against the SLA tier of affected applications"
+    outcome_template: "Action: {{action}}. Incident opened: {{incident_opened}}. ETA: {{eta}}"
+
+  - id: cost_center_budget_review
+    task: "Review {{cost_center.name}}'s budget position for fiscal year {{fiscal_year}}"
+    steps:
+      - thought: "List every application and team charged to this cost center"
+        action: "Query CHARGED_TO relationships from Application and Team"
+      - thought: "Sum contract costs for infrastructure supporting those applications"
+        action: "Traverse DEPLOYED_ON/HOSTED_ON down to physical servers and their COVERED_BY contracts"
+      - thought: "Compare against the allocated budget"
+        action: "Query the HAS_BUDGET relationship's amount for the fiscal year"
+    outcome_template: "Budget status: {{status}}. Allocated: {{amount}} {{currency}}. Charged applications: {{app_count}}"
+
+demo_scenarios:
+  - name: Infrastructure Topology
+    prompts:
+      - "What would break if hv-par1-01 went down?"
+      - "Show me the full deployment path for the Order API, from application down to datacenter"
+      - "Which physical hosts are closest to capacity?"
+
+  - name: Incident & Change Management
+    prompts:
+      - "Are there any open SEV1 or SEV2 incidents right now?"
+      - "What's the approval status of the Auth Service v2.0 change request?"
+      - "Show me every incident that's ever been reported against the Public Cloud API"
+
+  - name: Data Governance & Compliance
+    prompts:
+      - "Which applications touch PII or credential data?"
+      - "Trace the lineage of the Customer Database - who owns it and who reads it?"
+      - "What data flows write into the Cloud API access logs?"
+
+  - name: Vendor, Cost & Monitoring
+    prompts:
+      - "Which support contracts expire in the next 90 days?"
+      - "What's the budget status for the Platform cost center?"
+      - "Are any supervision probes currently in a warning or critical state?"
+
+agent_tools:
+  - name: search_entity
+    description: Full-text search across every CMDB entity (name, hostname, title, id, address, contract number)
+    cypher: |
+      CALL db.index.fulltext.queryNodes('cmdb_fulltext', $query + '*') YIELD node, score
+      RETURN node, labels(node) AS entity_labels, score
+      ORDER BY score DESC
+      LIMIT $limit
+    parameters:
+      - name: query
+        type: string
+        description: Search text
+      - name: limit
+        type: integer
+        default: 10
+
+  - name: get_application_blast_radius
+    description: Find every application that transitively depends on a given application
+    cypher: |
+      MATCH (app:Application {id: $application_id})<-[:DEPENDS_ON*1..5]-(impacted:Application)
+      RETURN DISTINCT impacted.name AS impacted_application, impacted.criticality AS criticality
+      ORDER BY criticality DESC
+    parameters:
+      - name: application_id
+        type: string
+        description: Application id to trace reverse dependencies from
+
+  - name: get_application_topology
+    description: Full deployment path for an application - app to container/VM to physical host to location
+    cypher: |
+      MATCH (app:Application {id: $application_id})-[:DEPLOYED_ON]->(ctr:Container)-[:RUNS_ON]->(vm:VirtualServer)
+      OPTIONAL MATCH (vm)-[:HOSTED_ON]->(host:PhysicalServer)-[:LOCATED_IN]->(loc:Datacenter)
+      OPTIONAL MATCH (vm)-[:LOCATED_IN]->(cloudLoc:CloudRegion)
+      RETURN app, ctr, vm, host, coalesce(loc, cloudLoc) AS location
+    parameters:
+      - name: application_id
+        type: string
+        description: Application id
+
+  - name: list_open_incidents
+    description: List open or investigating incidents with what they impact, most severe first
+    cypher: |
+      MATCH (i:Incident)
+      WHERE i.status IN ['open', 'investigating']
+      OPTIONAL MATCH (i)-[:IMPACTS]->(affected)
+      RETURN i.id AS incident_id, i.title AS title, i.severity AS severity,
+             collect(affected.name) AS impacts
+      ORDER BY i.severity
+      LIMIT $limit
+    parameters:
+      - name: limit
+        type: integer
+        default: 20
+
+  - name: get_change_approval_status
+    description: Full multi-step approval chain for a change request
+    cypher: |
+      MATCH (c:ChangeRequest {id: $change_id})
+      OPTIONAL MATCH (c)-[:HAS_APPROVAL]->(a:Approval)
+      OPTIONAL MATCH (a)-[:DECIDED_BY]->(decider:Person)
+      RETURN c.title AS change, a.step AS step, a.status AS status, decider.name AS decided_by
+      ORDER BY step
+    parameters:
+      - name: change_id
+        type: string
+        description: Change request id
+
+  - name: find_expiring_contracts
+    description: Support/maintenance contracts expiring within N days, with the servers they cover
+    cypher: |
+      MATCH (c:Contract)<-[:COVERED_BY]-(s:PhysicalServer)
+      WHERE c.endDate <= date() + duration({days: $within_days})
+      RETURN c.contractNumber AS contract, c.endDate AS end_date,
+             collect(s.hostname) AS covered_servers
+      ORDER BY end_date
+    parameters:
+      - name: within_days
+        type: integer
+        default: 90
+
+  - name: get_data_lineage
+    description: System of record and every other application reading a given data asset
+    cypher: |
+      MATCH (d:Data {id: $data_id})
+      OPTIONAL MATCH (owner:Application)-[:OWNS_DATA]->(d)
+      OPTIONAL MATCH (consumer:Application)-[:CONSUMES_DATA]->(d)
+      OPTIONAL MATCH (d)-[:CLASSIFIED_AS]->(cat:DataCategory)
+      RETURN d.name AS data_asset, owner.name AS system_of_record,
+             collect(DISTINCT consumer.name) AS also_consumed_by,
+             collect(DISTINCT cat.name) AS classifications
+    parameters:
+      - name: data_id
+        type: string
+        description: Data asset id
+
+  - name: get_active_probe_alerts
+    description: Supervision probes not currently in an 'ok' or 'disabled' state
+    cypher: |
+      MATCH (p:Probe)-[:MONITORS]->(target)
+      WHERE p.status <> 'ok' AND p.status <> 'disabled'
+      RETURN p.name AS probe, p.status AS status, p.severity AS severity,
+             p.alertCondition AS alert_condition, coalesce(target.hostname, target.name) AS monitors
+      ORDER BY p.severity
+      LIMIT $limit
+    parameters:
+      - name: limit
+        type: integer
+        default: 20
+
+  - name: get_cost_center_spend
+    description: Budget and number of charged applications per cost center
+    cypher: |
+      MATCH (cc:CostCenter)
+      OPTIONAL MATCH (cc)-[:HAS_BUDGET]->(b:Budget)
+      OPTIONAL MATCH (cc)<-[:CHARGED_TO]-(app:Application)
+      RETURN cc.name AS cost_center, b.amount AS budget, b.currency AS currency,
+             count(DISTINCT app) AS charged_applications
+      ORDER BY budget DESC
+
+system_prompt: |
+  You are an AI CMDB assistant with access to a comprehensive knowledge
+  graph of an IT organization's configuration data: physical and virtual
+  infrastructure, containers, applications, data assets and their
+  classification, network/IPAM, supervision probes, vendors and contracts,
+  cost allocation, and ITSM records (incidents, tickets, change requests
+  with multi-step approvals).
+
+  Your capabilities include:
+  - Tracing blast radius through application dependencies and hosting chains
+  - Assessing incident severity and routing based on impacted resources
+  - Checking change request approval status and risk before implementation
+  - Tracking data lineage and regulatory exposure across applications
+  - Finding contracts nearing expiration and cost center budget status
+  - Surfacing active monitoring alerts and what they affect
+
+  Always ground answers in the graph - cite specific hostnames, application
+  names, incident/change ids, and relationship paths rather than general
+  statements. When discussing incidents or changes, lead with impact and
+  urgency before background detail.
+
+visualization:
+  node_colors:
+    Datacenter: "#7C4DFF"
+    CloudRegion: "#B388FF"
+    PhysicalServer: "#FF7043"
+    VirtualServer: "#FFA726"
+    Container: "#26A69A"
+    Application: "#42A5F5"
+    DataFlow: "#7E57C2"
+    Data: "#5C6BC0"
+    NetworkInterface: "#78909C"
+    IPAddress: "#546E7A"
+    VLAN: "#607D8B"
+    Subnet: "#455A64"
+    Probe: "#00BFA5"
+    DataCategory: "#3949AB"
+    Environment: "#26C6DA"
+    SLA: "#D4E157"
+    Team: "#8D6E63"
+    Person: "#66BB6A"
+    Vendor: "#8D6E63"
+    Contract: "#A1887F"
+    CostCenter: "#FDD835"
+    Budget: "#FBC02D"
+    Incident: "#EF5350"
+    Ticket: "#EC407A"
+    ChangeRequest: "#AB47BC"
+    ApplicationVersion: "#64B5F6"
+    Approval: "#CE93D8"
+  node_sizes:
+    Application: 30
+    PhysicalServer: 28
+    VirtualServer: 22
+    Team: 22
+    Incident: 25
+    ChangeRequest: 20
+    Data: 20
+    Container: 15
+    Ticket: 15
+    Person: 15
+    NetworkInterface: 10
+    IPAddress: 10
+  default_cypher: "MATCH (a:Application)-[r:DEPENDS_ON]-(other:Application) RETURN a, r, other LIMIT 100"

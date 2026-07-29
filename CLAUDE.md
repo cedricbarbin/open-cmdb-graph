@@ -194,3 +194,19 @@ why.
 screen row (1-hop neighborhood, then merge in more on each node click) via
 `fetchNeighborhood`/`fetchFilteredNeighborhood`/`fetchNeighborhoodTypes` in
 `neo4j.js` — it's read-only/exploratory, not an editor.
+
+**NVL layout gotcha**: `@neo4j-nvl/react`'s wrapper only diffs `nodes`/`rels`
+props and calls `addAndUpdateElementsInGraph()` - it never restarts the
+force simulation on its own. Set or merge in nodes without an explicit
+relayout and they render wherever the (already cooled-down) simulation last
+settled, i.e. stacked on top of each other at the center, and stay stuck
+until something else - dragging a node - happens to wake the simulation
+back up. `app/src/lib/useGraphRelayout.js` is the fix, used by both
+`GraphExplorerPage.jsx` and `DetailGraphModal.jsx`: call the hook's
+`triggerRelayout()` immediately before *every* `setGraph(...)` (including
+the very first one - a real bug here was assuming the first render didn't
+need it), and its effect calls `nvlRef.current.restart(undefined, false)`
+once NVL has actually applied the new nodes (child effects commit before
+the hook's parent-level effect, so the ordering is safe). Any new
+graph-rendering screen built on `GraphView.jsx` should use this hook rather
+than setting graph state directly.

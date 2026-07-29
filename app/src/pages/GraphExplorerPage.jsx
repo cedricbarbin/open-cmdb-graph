@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import GraphView from '../components/GraphView.jsx';
+import { useGraphRelayout } from '../lib/useGraphRelayout.js';
 import Inspector from '../components/Inspector.jsx';
 import QueryBar from '../components/QueryBar.jsx';
 import AddNodeModal from '../components/AddNodeModal.jsx';
@@ -29,6 +30,8 @@ export default function GraphExplorerPage() {
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState(null); // 'addNode' | 'addRelationship' | null
 
+  const { nvlRef, triggerRelayout } = useGraphRelayout(graph);
+
   function flashError(err) {
     setToast({ kind: 'error', message: err.message || String(err) });
     setTimeout(() => setToast(null), 6000);
@@ -38,12 +41,14 @@ export default function GraphExplorerPage() {
     setRunning(true);
     try {
       const records = await runCypher(cypher, {}, database);
+      triggerRelayout();
       setGraph(recordsToGraph(records));
     } catch (err) {
       flashError(err);
     } finally {
       setRunning(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [database]);
 
   useEffect(() => {
@@ -74,6 +79,7 @@ export default function GraphExplorerPage() {
 
   async function refresh() {
     const records = await runCypher(DEFAULT_QUERY, {}, database);
+    triggerRelayout();
     setGraph(recordsToGraph(records));
   }
 
@@ -163,6 +169,7 @@ export default function GraphExplorerPage() {
 
       <div className="main">
         <GraphView
+          nvlRef={nvlRef}
           nodes={graph.nodes}
           relationships={graph.relationships}
           onSelectNode={handleSelectNode}
