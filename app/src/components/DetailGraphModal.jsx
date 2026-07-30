@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Modal from './Modal.jsx';
 import GraphView from './GraphView.jsx';
 import GraphContextMenu from './GraphContextMenu.jsx';
 import { fetchNeighborhood, fetchNeighborhoodTypes, fetchFilteredNeighborhood } from '../lib/neo4j.js';
 import { recordsToGraph, mergeGraphs } from '../lib/graphModel.js';
+import { useGraphRelayout } from '../lib/useGraphRelayout.js';
 
 const MENU_WIDTH = 240;
 const MENU_MAX_HEIGHT = 360;
@@ -35,11 +36,7 @@ export default function DetailGraphModal({ elementId, caption, database, onClose
   const [error, setError] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
 
-  const nvlRef = useRef(null);
-  // Set right before an expand merges new nodes in, so the layout-recompute
-  // effect below only fires for expansions - not for the very first render,
-  // where the freshly-fetched 1-hop neighborhood is already laid out fine.
-  const pendingRelayoutRef = useRef(false);
+  const { nvlRef, triggerRelayout } = useGraphRelayout(graph);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,31 +44,19 @@ export default function DetailGraphModal({ elementId, caption, database, onClose
     fetchNeighborhood(elementId, database)
       .then((records) => {
         if (cancelled) return;
+        triggerRelayout();
         setGraph(recordsToGraph(records));
         setExpandedIds(new Set([elementId]));
       })
       .catch((err) => !cancelled && setError(err.message))
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elementId, database]);
-
-  // Runs after GraphView/NVL have applied the latest `graph` state (child
-  // effects commit before this one), so the new nodes already exist in the
-  // NVL instance by the time we ask it to recompute the whole layout.
-  useEffect(() => {
-    if (pendingRelayoutRef.current && nvlRef.current) {
-      // retainPositions=false: recompute every node's position from scratch
-      // with the (now larger) full graph, rather than leaving previously
-      // placed nodes pinned - that's what actually reduces edge crossings,
-      // since a partial layout around fixed old positions can't.
-      nvlRef.current.restart(undefined, false);
-      pendingRelayoutRef.current = false;
-    }
-  }, [graph]);
 
   function mergeAndRelayout(records) {
     const fetched = recordsToGraph(records);
-    pendingRelayoutRef.current = true;
+    triggerRelayout();
     setGraph((g) => mergeGraphs(g, fetched));
   }
 
@@ -151,7 +136,7 @@ export default function DetailGraphModal({ elementId, caption, database, onClose
   // neighbors fresh instead of being treated as "already expanded".
   function handleMaskOthers(node) {
     setContextMenu(null);
-    pendingRelayoutRef.current = true;
+    triggerRelayout();
     setGraph({ nodes: [node], relationships: [] });
     setExpandedIds(new Set());
     setSelectedNode(node);

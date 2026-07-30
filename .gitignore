@@ -71,3 +71,6 @@ bower_components
 psd
 thumb
 sketch
+
+# Claude Code hook output (generated per-session, not source)
+prompt_trace.csv

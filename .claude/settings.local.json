@@ -11,7 +11,46 @@
       "Bash(curl -sS http://localhost:5175/src/main.jsx)",
       "Bash(curl -sS http://localhost:5175/)",
       "Bash(pkill -f \"vite\")",
-      "Bash(jobs -l)"
+      "Bash(jobs -l)",
+      "Bash(node --check src/lib/nodeTypes.js)",
+      "Bash(node --check src/lib/graphModel.js)",
+      "Bash(node --check src/lib/neo4j.js)",
+      "Bash(node --check src/lib/ConnectionContext.jsx)",
+      "Bash(node --check src/pages/EntityListScreen.jsx)",
+      "Bash(node --check src/pages/GraphExplorerPage.jsx)",
+      "Bash(node --check src/components/ConnectionPanel.jsx)",
+      "Bash(nc -z -w2 localhost 7687)",
+      "Bash(cypher-shell -a neo4j://localhost:7687 -u neo4j -p neo4j \"RETURN 1\")",
+      "Bash(env)",
+      "Bash(curl -s http://localhost:5173/src/main.jsx)",
+      "Bash(curl -s http://localhost:5173/src/App.jsx)",
+      "Skill(update-config)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(P.)",
+      "Bash(grep -n \"IPAM v2\\\\|last section\\\\|section P\\\\|section.*write operations\\\\|`P.`\" /Users/cbarbin/Developpement/Neo4J/cmdb/open-cmdb-graph/README.md)",
+      "Bash(grep -n \"cookbook section P\\\\b\\\\|\\\\`P\\\\.\\\\`\" README.md CLAUDE.md)",
+      "Bash(node *)",
+      "Bash(npm audit *)",
+      "Bash(grep *)",
+      "Bash(awk '{print $5, $9}')",
+      "Bash(python3 -c ' *)",
+      "Bash(pip3 install *)",
+      "Bash(python3 -m pip install --quiet --user pyyaml)",
+      "Bash(ruby -ryaml -e ' *)",
+      "Bash(sed -E \"s/^\\\\s*\\([A-Za-z]+\\):\\\\s*\\\\{ color: '\\(#[0-9A-Fa-f]+\\)'.*/\\\\1: \\\\2/\")",
+      "Read(//tmp/**)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/.claude/hooks/trace_prompt.js"
+          }
+        ]
+      }
     ]
   }
 }

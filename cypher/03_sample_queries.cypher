@@ -254,11 +254,128 @@ OPTIONAL MATCH (d)<-[:CONCERNS]-(t:Ticket)
 RETURN d.name AS data, i.title AS incident, i.severity AS severity, collect(DISTINCT t.id) AS tickets;
 
 // ---------------------------------------------------------------------
-// J. WRITE OPERATIONS (create / update / delete)
+// K. IPAM v2 (VLAN / Subnet - grouping the flat IPAddress nodes)
+// ---------------------------------------------------------------------
+
+// K1. IP capacity used per subnet (a /24 has 254 usable host addresses)
+MATCH (s:Subnet)
+OPTIONAL MATCH (s)<-[:IN_SUBNET]-(ip:IPAddress)
+RETURN s.cidr AS subnet, s.name AS name, count(ip) AS ipsAllocated,
+       254 - count(ip) AS approxAddressesFree
+ORDER BY subnet;
+
+// K2. Which VLAN a given IP address belongs to
+MATCH (ip:IPAddress {address: '10.10.1.101'})-[:IN_SUBNET]->(s:Subnet)-[:IN_VLAN]->(v:VLAN)
+RETURN ip.address AS ipAddress, s.cidr AS subnet, v.name AS vlan, v.vlanId AS vlanId;
+
+// K3. Full IPAM chain for a physical host: NIC -> IP -> Subnet -> VLAN
+MATCH (host:Server:Physical {id: 'srv-phy-001'})-[:HAS_INTERFACE]->(nic:NetworkInterface)-[:HAS_IP]->(ip:IPAddress)
+OPTIONAL MATCH (ip)-[:IN_SUBNET]->(s:Subnet)-[:IN_VLAN]->(v:VLAN)
+RETURN host.hostname AS host, nic.name AS interface, ip.address AS ipAddress, s.cidr AS subnet, v.name AS vlan;
+
+// ---------------------------------------------------------------------
+// L. MULTI-STEP CHANGE APPROVALS
+// ---------------------------------------------------------------------
+
+// L1. Full approval chain (per-step status) for a change request
+MATCH (c:ChangeRequest {id: 'chg-2026-0002'})-[:HAS_APPROVAL]->(a:Approval)
+OPTIONAL MATCH (a)-[:DECIDED_BY]->(decider:Person)
+RETURN c.title AS change, a.step AS step, a.status AS status, a.comment AS comment,
+       decider.name AS decidedBy, a.decidedAt AS decidedAt
+ORDER BY step;
+
+// L2. Change requests still blocked on a pending approval step
+MATCH (c:ChangeRequest)-[:HAS_APPROVAL]->(a:Approval {status: 'pending'})
+RETURN c.id AS change, c.title AS title, c.riskLevel AS risk, a.step AS pendingStep
+ORDER BY risk DESC;
+
+// ---------------------------------------------------------------------
+// M. COST CENTERS / BUDGETS (chargeback / showback)
+// ---------------------------------------------------------------------
+
+// M1. Budget and number of charged applications per cost center
+MATCH (cc:CostCenter)
+OPTIONAL MATCH (cc)-[:HAS_BUDGET]->(b:Budget)
+OPTIONAL MATCH (cc)<-[:CHARGED_TO]-(app:Application)
+RETURN cc.name AS costCenter, b.amount AS budget, b.currency AS currency,
+       count(DISTINCT app) AS chargedApplications
+ORDER BY budget DESC;
+
+// M2. Which cost center (and budget) funds a given application
+MATCH (a:Application {id: 'app-orderapi'})-[:CHARGED_TO]->(cc:CostCenter)-[:HAS_BUDGET]->(b:Budget)
+RETURN a.name AS application, cc.name AS costCenter, b.name AS budget, b.amount AS amount, b.currency AS currency;
+
+// ---------------------------------------------------------------------
+// N. APPLICATION VERSION HISTORY (point-in-time snapshots)
+// ---------------------------------------------------------------------
+
+// N1. Full version timeline for an application
+MATCH (a:Application {id: 'app-orderapi'})-[:HAD_VERSION]->(av:ApplicationVersion)
+RETURN a.name AS application, av.version AS version, av.validFrom AS validFrom,
+       av.validTo AS validTo, av.changelog AS changelog
+ORDER BY validFrom;
+
+// N2. Which version of an application was live at a given point in time
+MATCH (a:Application {id: 'app-orderapi'})-[:HAD_VERSION]->(av:ApplicationVersion)
+WHERE av.validFrom <= date('2026-01-15') AND (av.validTo IS NULL OR av.validTo > date('2026-01-15'))
+RETURN a.name AS application, av.version AS versionAtDate;
+
+// ---------------------------------------------------------------------
+// O. DATA FLOWS (ETL / replication pipelines between Data assets)
+// ---------------------------------------------------------------------
+
+// O1. All data flows with their source/target data and implementing application
+MATCH (f:DataFlow)
+OPTIONAL MATCH (f)-[:SOURCE_DATA]->(src:Data)
+OPTIONAL MATCH (f)-[:TARGET_DATA]->(tgt:Data)
+OPTIONAL MATCH (impl:Application)-[:IMPLEMENTS]->(f)
+RETURN f.name AS dataFlow, f.type AS type, f.schedule AS schedule,
+       collect(DISTINCT src.name) AS sources, collect(DISTINCT tgt.name) AS targets,
+       collect(DISTINCT impl.name) AS implementedBy;
+
+// O2. Which application implements a given data flow
+MATCH (a:Application)-[:IMPLEMENTS]->(f:DataFlow {id: 'flow-customer-pii-masking'})
+RETURN f.name AS dataFlow, a.name AS implementedBy;
+
+// O3. Downstream data lineage extended through pipelines: everything a data
+//     asset feeds into, beyond direct application OWNS_DATA/CONSUMES_DATA
+MATCH (d:Data {id: 'data-customers'})<-[:SOURCE_DATA]-(f:DataFlow)-[:TARGET_DATA]->(downstream:Data)
+RETURN d.name AS sourceData, f.name AS viaFlow, downstream.name AS downstreamData;
+
+// ---------------------------------------------------------------------
+// P. SUPERVISION / PROBES (health checks against Virtual Servers,
+// Containers, and Applications)
+// ---------------------------------------------------------------------
+
+// P1. Every probe, what it monitors, and its current status
+MATCH (p:Probe)-[:MONITORS]->(target)
+RETURN p.name AS probe, p.checkType AS checkType,
+       coalesce(p.command, p.process, toString(p.port)) AS checkTarget,
+       labels(target) AS targetLabels, coalesce(target.hostname, target.name) AS monitors,
+       p.status AS status, p.severity AS alertSeverity
+ORDER BY p.status DESC, probe;
+
+// P2. Active alerts: probes not currently 'ok' (and not turned off)
+MATCH (p:Probe)-[:MONITORS]->(target)
+WHERE p.status <> 'ok' AND p.status <> 'disabled'
+RETURN p.name AS probe, p.status AS status, p.severity AS severity,
+       p.alertCondition AS alertCondition, coalesce(target.hostname, target.name) AS monitors
+ORDER BY p.severity;
+
+// P3. Coverage gap: Virtual Servers, Containers, and Applications with no probe at all
+MATCH (target)
+WHERE (target:Server:Virtual OR target:Container OR target:Application)
+OPTIONAL MATCH (target)<-[:MONITORS]-(p:Probe)
+WITH target, count(p) AS probeCount
+WHERE probeCount = 0
+RETURN labels(target) AS targetLabels, coalesce(target.hostname, target.name) AS unmonitoredResource;
+
+// ---------------------------------------------------------------------
+// Q. WRITE OPERATIONS (create / update / delete)
 // These mirror what the web app does through its Add/Edit/Delete forms.
 // ---------------------------------------------------------------------
 
-// J1. Create a new physical server
+// Q1. Create a new physical server
 CREATE (s:Server:Physical {
   id: 'srv-phy-005',
   hostname: 'hv-par1-03',
@@ -276,11 +393,11 @@ CREATE (s:Server:Physical {
 })
 RETURN s;
 
-// J2. Attach it to a location
+// Q2. Attach it to a location
 MATCH (s:Server {id: 'srv-phy-005'}), (l:Location {id: 'loc-dc-par1'})
 MERGE (s)-[:LOCATED_IN]->(l);
 
-// J3. Create a new Virtual server hosted on it, in one statement
+// Q3. Create a new Virtual server hosted on it, in one statement
 MATCH (host:Server:Physical {id: 'srv-phy-005'})
 CREATE (vm:Server:Virtual {
   id: 'vm-web-03', hostname: 'web-03.prod.local', ipAddress: '10.10.2.13',
@@ -289,7 +406,7 @@ CREATE (vm:Server:Virtual {
 })-[:HOSTED_ON]->(host)
 RETURN vm;
 
-// J4. Generic "add node with arbitrary label + properties" (what the app's
+// Q4. Generic "add node with arbitrary label + properties" (what the app's
 // Add Node form runs; label & props come from user input, id always required)
 // :params { label: 'Application', props: { id: 'app-newsvc', name: 'New Service', criticality: 'low' } }
 CALL apoc.merge.node([$label], {id: $props.id}, $props, $props) YIELD node
@@ -298,45 +415,45 @@ RETURN node;
 // avoids APOC by building the label into the query string safely (see
 // app/src/lib/neo4j.js) since the target Neo4j instance may not have it.
 
-// J5. Generic "add relationship between two existing nodes by id"
+// Q5. Generic "add relationship between two existing nodes by id"
 MATCH (a {id: $fromId}), (b {id: $toId})
 CALL apoc.merge.relationship(a, $relType, {}, $props, b) YIELD rel
 RETURN rel;
-// Same remark as J4 - see app/src/lib/neo4j.js for the APOC-free equivalent.
+// Same remark as Q4 - see app/src/lib/neo4j.js for the APOC-free equivalent.
 
-// J6. Update a node's properties (partial update / PATCH semantics)
+// Q6. Update a node's properties (partial update / PATCH semantics)
 MATCH (a:Application {id: 'app-orderapi'})
 SET a.version = '2.5.0', a.criticality = 'critical', a.updatedAt = datetime()
 RETURN a;
 
-// J7. Update a relationship's properties
+// Q7. Update a relationship's properties
 MATCH (:Application {id: 'app-orderapi'})-[r:DEPENDS_ON]->(:Application {id: 'app-authsvc'})
 SET r.type = 'synchronous', r.timeoutMs = 2000
 RETURN r;
 
-// J8. Close a ticket and resolve its linked incident
+// Q8. Close a ticket and resolve its linked incident
 MATCH (t:Ticket {id: 'tkt-1004'})
 SET t.status = 'resolved', t.updatedAt = datetime()
 WITH t
 MATCH (t)-[:TRACKS]->(i:Incident)
 SET i.status = 'resolved', i.resolvedAt = datetime();
 
-// J9. Move a VM to a different physical host (replace a relationship)
+// Q9. Move a VM to a different physical host (replace a relationship)
 MATCH (vm:Server:Virtual {id: 'vm-app-02'})-[r:HOSTED_ON]->(:Server:Physical)
 DELETE r
 WITH vm
 MATCH (newHost:Server:Physical {id: 'srv-phy-001'})
 MERGE (vm)-[:HOSTED_ON]->(newHost);
 
-// J10. Decommission a server: detach then delete (keeps history-free graph tidy)
+// Q10. Decommission a server: detach then delete (keeps history-free graph tidy)
 MATCH (s:Server {id: 'srv-phy-005'})
 DETACH DELETE s;
 
-// J11. Delete a single relationship between two known nodes
+// Q11. Delete a single relationship between two known nodes
 MATCH (:Application {id: 'app-crm'})-[r:DEPENDS_ON]->(:Application {id: 'app-authsvc'})
 DELETE r;
 
-// J12. Create an incident + link it to affected resources + reporter in one go
+// Q12. Create an incident + link it to affected resources + reporter in one go
 MATCH (reporter:Person {id: 'p-eve'})
 MATCH (target:Server {id: 'srv-phy-004'})
 CREATE (i:Incident {
@@ -347,7 +464,7 @@ CREATE (i:Incident {
 CREATE (i)-[:REPORTED_BY]->(reporter)
 RETURN i;
 
-// J13. Open a ticket against that incident and assign it
+// Q13. Open a ticket against that incident and assign it
 MATCH (i:Incident {id: 'inc-2026-0005'}), (assignee:Person {id: 'p-alice'}), (opener:Person {id: 'p-eve'})
 CREATE (t:Ticket {
   id: 'tkt-1006', title: 'Fix nightly backup failures', description: 'See inc-2026-0005',

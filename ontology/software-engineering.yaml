@@ -1,0 +1,517 @@
+inherits: _base
+
+domain:
+  id: software-engineering
+  name: Software Engineering
+  description: Software development lifecycle, repositories, issues, deployments, and team collaboration
+  tagline: "AI-powered Software Intelligence"
+  emoji: "\U0001F4BB"
+
+entity_types:
+  - label: Repository
+    pole_type: OBJECT
+    subtype: CODE_REPOSITORY
+    color: "#6366f1"
+    icon: git-branch
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: language
+        type: string
+      - name: description
+        type: string
+      - name: visibility
+        type: string
+        enum: [public, private, internal]
+      - name: default_branch
+        type: string
+        default: main
+
+  - label: Issue
+    pole_type: EVENT
+    subtype: ISSUE
+    color: "#ef4444"
+    icon: circle-dot
+    properties:
+      - name: issue_id
+        type: string
+        required: true
+        unique: true
+      - name: title
+        type: string
+        required: true
+      - name: status
+        type: string
+        enum: [open, in_progress, review, closed]
+      - name: priority
+        type: string
+        enum: [critical, high, medium, low]
+      - name: description
+        type: string
+      - name: created_date
+        type: datetime
+
+  - label: PullRequest
+    pole_type: EVENT
+    subtype: PULL_REQUEST
+    color: "#14b8a6"
+    icon: git-pull-request
+    properties:
+      - name: pr_id
+        type: string
+        required: true
+        unique: true
+      - name: title
+        type: string
+        required: true
+      - name: status
+        type: string
+        enum: [draft, open, review, merged, closed]
+      - name: lines_added
+        type: integer
+      - name: lines_removed
+        type: integer
+      - name: created_date
+        type: datetime
+
+  - label: Deployment
+    pole_type: EVENT
+    subtype: DEPLOYMENT
+    color: "#f59e0b"
+    icon: rocket
+    properties:
+      - name: deployment_id
+        type: string
+        required: true
+        unique: true
+      - name: environment
+        type: string
+        enum: [development, staging, production]
+      - name: status
+        type: string
+        enum: [pending, in_progress, success, failed, rolled_back]
+      - name: version
+        type: string
+      - name: date
+        type: datetime
+        required: true
+
+  - label: Service
+    pole_type: OBJECT
+    subtype: MICROSERVICE
+    color: "#0ea5e9"
+    icon: server
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: service_type
+        type: string
+        enum: [api, worker, frontend, database, cache, queue]
+      - name: status
+        type: string
+        enum: [healthy, degraded, down]
+      - name: description
+        type: string
+
+  - label: Incident
+    pole_type: EVENT
+    subtype: INCIDENT
+    color: "#dc2626"
+    icon: alert-triangle
+    properties:
+      - name: incident_id
+        type: string
+        required: true
+        unique: true
+      - name: title
+        type: string
+        required: true
+      - name: severity
+        type: string
+        enum: [sev1, sev2, sev3, sev4]
+      - name: status
+        type: string
+        enum: [detected, investigating, mitigating, resolved, postmortem]
+      - name: started_at
+        type: datetime
+      - name: resolved_at
+        type: datetime
+
+relationships:
+  - type: AUTHORED
+    source: Person
+    target: PullRequest
+  - type: REVIEWED
+    source: Person
+    target: PullRequest
+  - type: ASSIGNED_TO
+    source: Issue
+    target: Person
+  - type: FILED_BY
+    source: Issue
+    target: Person
+  - type: BELONGS_TO
+    source: Issue
+    target: Repository
+  - type: TARGETS
+    source: PullRequest
+    target: Repository
+  - type: FIXES
+    source: PullRequest
+    target: Issue
+  - type: DEPLOYED_TO
+    source: Deployment
+    target: Service
+  - type: TRIGGERED_BY
+    source: Deployment
+    target: PullRequest
+  - type: DEPENDS_ON
+    source: Service
+    target: Service
+  - type: CAUSED_INCIDENT
+    source: Deployment
+    target: Incident
+  - type: AFFECTED
+    source: Incident
+    target: Service
+  - type: ON_CALL
+    source: Person
+    target: Service
+  - type: CONTAINS
+    source: Repository
+    target: Service
+
+document_templates:
+  - id: sprint_retro
+    name: Sprint Retrospective
+    description: Notes from sprint retrospective meetings
+    count: 6
+    prompt_template: |
+      Write sprint retrospective notes for the {{organization.name}} engineering team.
+      Sprint dates: {{date_range}}. Team members: {{person_list}}.
+      Include what went well, what didn't, and action items.
+      Reference specific PRs, issues, and deployments from the sprint.
+    required_entities: [Person, Organization, PullRequest, Issue]
+
+  - id: incident_report
+    name: Incident Report
+    description: Post-incident review documents
+    count: 5
+    prompt_template: |
+      Write a post-incident report for incident {{incident.title}}.
+      Severity: {{incident.severity}}. Affected services: {{service_list}}.
+      On-call engineer: {{person.name}}. Include timeline, root cause,
+      impact, and remediation steps.
+    required_entities: [Incident, Service, Person, Deployment]
+
+  - id: design_doc
+    name: Design Document
+    description: Technical design documents for new features
+    count: 5
+    prompt_template: |
+      Write a technical design document for a new feature in the
+      {{repository.name}} repository. Author: {{person.name}}.
+      Include problem statement, proposed solution, alternatives considered,
+      and implementation plan.
+    required_entities: [Person, Repository, Service]
+
+  - id: pr_description
+    name: Pull Request Description
+    description: Detailed PR descriptions with context
+    count: 10
+    prompt_template: |
+      Write a pull request description for {{pr.title}} targeting
+      {{repository.name}}. Author: {{person.name}}.
+      Include summary of changes, motivation, testing done, and
+      deployment considerations.
+    required_entities: [Person, PullRequest, Repository]
+
+  - id: email
+    name: Engineering Email
+    description: Internal engineering team communications
+    count: 10
+    prompt_template: |
+      Write an email from {{sender.name}} to the {{organization.name}}
+      engineering team about {{topic}}.
+    required_entities: [Person, Organization]
+
+decision_traces:
+  - id: deploy_decision
+    task: "Decide whether to deploy {{pr.title}} to production on a Friday afternoon"
+    steps:
+      - thought: "Assess the risk of the changes"
+        action: "Review PR diff size, affected services, and test coverage"
+      - thought: "Check for any ongoing incidents or upcoming events"
+        action: "Query active incidents and deployment calendar"
+      - thought: "Evaluate rollback capability"
+        action: "Check if the deployment can be easily rolled back"
+      - thought: "Consider team availability for monitoring"
+        action: "Check on-call schedule and team availability"
+    outcome_template: "Decision: {{decision}} deployment. Rationale: {{rationale}}"
+
+  - id: incident_response
+    task: "Respond to {{incident.severity}} incident affecting {{service.name}}"
+    steps:
+      - thought: "Identify the scope and impact of the incident"
+        action: "Query service dependency graph and recent deployments"
+      - thought: "Determine if a recent deployment caused the issue"
+        action: "Check deployment history for affected services in last 24 hours"
+      - thought: "Decide between rollback and forward-fix"
+        action: "Assess complexity of rollback vs implementing a fix"
+    outcome_template: "Action: {{action}}. ETA to resolution: {{eta}}"
+
+  - id: tech_debt_prioritization
+    task: "Prioritize tech debt items for next quarter"
+    steps:
+      - thought: "Gather all open tech debt issues"
+        action: "Query issues tagged as tech-debt across all repositories"
+      - thought: "Assess impact on team velocity and reliability"
+        action: "Correlate tech debt items with incident history and cycle time"
+      - thought: "Estimate effort and ROI for each item"
+        action: "Review similar past work for effort estimation"
+    outcome_template: "Priority list: {{items}}. Total estimated effort: {{effort}}"
+
+  - id: incident_triage
+    task: "Triage incoming incident report for {{service.name}} with severity {{incident.severity}}"
+    steps:
+      - thought: "Assess the blast radius by checking service dependencies"
+        action: "Query service dependency graph to identify upstream and downstream affected services"
+      - thought: "Check for correlated incidents or ongoing issues"
+        action: "Query active incidents affecting the same or dependent services"
+      - thought: "Identify the on-call engineer and recent changes"
+        action: "Find on-call person for the service and recent deployments in the last 24 hours"
+      - thought: "Assign severity and route to appropriate responder"
+        action: "Evaluate impact scope and assign final severity based on affected service count"
+    outcome_template: "Triage result: {{severity}}. Assigned to: {{assignee}}. Affected services: {{service_count}}"
+
+  - id: code_review_assessment
+    task: "Assess review readiness and risk of {{pr.title}} targeting {{repository.name}}"
+    steps:
+      - thought: "Evaluate the scope and complexity of changes"
+        action: "Check PR lines added/removed and number of files changed"
+      - thought: "Assess test coverage and CI status"
+        action: "Query the PR status and linked issues for context"
+      - thought: "Check for dependency on other PRs or blocked issues"
+        action: "Find issues fixed by this PR and their current status"
+      - thought: "Identify appropriate reviewers based on code ownership"
+        action: "Query developers who have authored or reviewed PRs for the same repository"
+    outcome_template: "Review readiness: {{readiness}}. Risk: {{risk_level}}. Recommended reviewers: {{reviewers}}"
+
+  - id: deployment_rollback
+    task: "Decide whether to rollback deployment {{deployment.deployment_id}} to {{service.name}}"
+    steps:
+      - thought: "Assess the severity and scope of the post-deployment issue"
+        action: "Query incidents caused by this deployment and affected services"
+      - thought: "Evaluate if a forward-fix is feasible within the SLA"
+        action: "Check for open PRs that fix the related issues and their review status"
+      - thought: "Verify rollback safety by checking for data migrations or breaking changes"
+        action: "Review the PR that triggered the deployment and its change scope"
+      - thought: "Confirm rollback target version and dependencies"
+        action: "Query previous successful deployments for the service"
+    outcome_template: "Decision: {{decision}}. Rollback to: {{target_version}}. Estimated recovery: {{eta}}"
+
+  - id: capacity_planning
+    task: "Plan capacity for {{service.name}} ahead of anticipated traffic increase"
+    steps:
+      - thought: "Assess current service health and resource utilization"
+        action: "Query service status and recent incident history for degradation patterns"
+      - thought: "Map service dependencies that may become bottlenecks"
+        action: "Traverse the DEPENDS_ON graph to identify critical path services"
+      - thought: "Review deployment frequency and recent scaling changes"
+        action: "Query deployment history for the service and its dependencies"
+    outcome_template: "Capacity plan: {{plan}}. Bottleneck services: {{bottlenecks}}. Scaling actions: {{actions}}"
+
+  - id: security_vulnerability
+    task: "Respond to security vulnerability reported in {{repository.name}} affecting {{service.name}}"
+    steps:
+      - thought: "Assess the exposure scope across services"
+        action: "Query services contained in the repository and their downstream dependents"
+      - thought: "Identify all deployments running the vulnerable version"
+        action: "Find recent deployments for affected services and their versions"
+      - thought: "Determine patching priority based on service criticality"
+        action: "Check incident history and dependency count for affected services"
+      - thought: "Coordinate fix through PR and expedited deployment"
+        action: "Query open PRs targeting the repository and on-call engineers for the services"
+    outcome_template: "Severity: {{severity}}. Affected services: {{service_count}}. Patch ETA: {{eta}}"
+
+  - id: dependency_upgrade
+    task: "Evaluate upgrading a critical dependency in {{repository.name}}"
+    steps:
+      - thought: "Map all services and repositories affected by this dependency"
+        action: "Query services contained in the repository and their dependents"
+      - thought: "Review historical incidents linked to dependency-related changes"
+        action: "Find incidents caused by deployments to affected services"
+      - thought: "Assess testing requirements and breaking change risk"
+        action: "Query open issues tagged against the repository and recent PR merge rates"
+    outcome_template: "Upgrade decision: {{decision}}. Impact: {{service_count}} services. Effort: {{effort}}"
+
+  - id: performance_optimization
+    task: "Investigate and optimize performance degradation in {{service.name}}"
+    steps:
+      - thought: "Correlate performance degradation with recent deployments"
+        action: "Query deployment history for the service in the last 7 days"
+      - thought: "Check if dependent services are contributing to latency"
+        action: "Traverse DEPENDS_ON relationships and check health status of dependencies"
+      - thought: "Identify relevant incidents and their resolution patterns"
+        action: "Find similar past incidents affecting this service and their resolution steps"
+      - thought: "Recommend optimization approach based on findings"
+        action: "Review PRs that previously addressed performance issues in the same repository"
+    outcome_template: "Root cause: {{root_cause}}. Optimization: {{optimization}}. Expected improvement: {{improvement}}"
+
+demo_scenarios:
+  - name: Code Review & PRs
+    prompts:
+      - "Show me all open pull requests across our repositories"
+      - "Who are the most active code reviewers this sprint?"
+      - "What issues are blocked or in review right now?"
+
+  - name: Incident Response
+    prompts:
+      - "Are there any active incidents? What services are affected?"
+      - "Show me the deployment history for the auth service this week"
+      - "What was the root cause of the last sev1 incident?"
+
+  - name: Engineering Intelligence
+    prompts:
+      - "Which services have the most dependencies?"
+      - "What's the relationship between recent deployments and incidents?"
+      - "Find similar past incidents to a current database performance issue"
+
+agent_tools:
+  - name: search_developer
+    description: Search for developers by name or role
+    cypher: |
+      MATCH (p:Person)
+      WHERE toLower(p.name) CONTAINS toLower($query)
+         OR toLower(coalesce(p.role, '')) CONTAINS toLower($query)
+      OPTIONAL MATCH (p)-[r]-(related)
+      RETURN p, type(r) AS rel_type, related
+      LIMIT 20
+    parameters:
+      - name: query
+        type: string
+        description: Name or role to search for
+
+  - name: get_service_health
+    description: Get the health status and dependencies of a service
+    cypher: |
+      MATCH (s:Service {name: $name})
+      OPTIONAL MATCH (s)-[:DEPENDS_ON]->(dep:Service)
+      OPTIONAL MATCH (d:Deployment)-[:DEPLOYED_TO]->(s)
+      OPTIONAL MATCH (i:Incident)-[:AFFECTED]->(s)
+      WHERE i.status <> 'resolved'
+      RETURN s, collect(DISTINCT dep) AS dependencies,
+             collect(DISTINCT d) AS recent_deployments,
+             collect(DISTINCT i) AS active_incidents
+    parameters:
+      - name: name
+        type: string
+        description: Service name
+
+  - name: find_similar_incidents
+    description: Find past incidents similar to a current one
+    cypher: |
+      MATCH (i:Incident {incident_id: $incident_id})
+      CALL db.index.vector.queryNodes('incident_embeddings', 5, i.embedding)
+      YIELD node, score
+      WHERE node.incident_id <> $incident_id
+      RETURN node AS similar_incident, score
+      ORDER BY score DESC
+    parameters:
+      - name: incident_id
+        type: string
+        description: Incident ID to find similar incidents for
+
+  - name: get_deployment_history
+    description: Get deployment history for a service
+    cypher: |
+      MATCH (d:Deployment)-[:DEPLOYED_TO]->(s:Service {name: $service})
+      OPTIONAL MATCH (d)-[:TRIGGERED_BY]->(pr:PullRequest)
+      OPTIONAL MATCH (d)-[:CAUSED_INCIDENT]->(i:Incident)
+      RETURN d, pr, i
+      ORDER BY d.date DESC
+      LIMIT $limit
+    parameters:
+      - name: service
+        type: string
+        description: Service name
+      - name: limit
+        type: integer
+        default: 10
+
+  - name: get_pr_impact
+    description: Trace the impact of a pull request through deployments and incidents
+    cypher: |
+      MATCH (pr:PullRequest {pr_id: $pr_id})
+      OPTIONAL MATCH (pr)<-[:TRIGGERED_BY]-(d:Deployment)-[:DEPLOYED_TO]->(s:Service)
+      OPTIONAL MATCH (d)-[:CAUSED_INCIDENT]->(i:Incident)
+      RETURN pr, collect(DISTINCT d) AS deployments,
+             collect(DISTINCT s) AS services,
+             collect(DISTINCT i) AS incidents
+    parameters:
+      - name: pr_id
+        type: string
+        description: Pull request ID
+
+  - name: list_repositories
+    description: "List Repository records with optional limit"
+    cypher: |
+      MATCH (n:Repository)
+      RETURN n
+      ORDER BY n.name
+      LIMIT toInteger($limit)
+    parameters:
+      - name: limit
+        type: string
+        description: "Maximum number of results to return (default: 10)"
+
+  - name: get_repository_by_name
+    description: "Get a specific Repository by name with all connections"
+    cypher: |
+      MATCH (n:Repository {name: $name})
+      OPTIONAL MATCH (n)-[r]-(related)
+      RETURN n, type(r) AS relationship, labels(related) AS related_labels, related.name AS related_name
+      LIMIT 50
+    parameters:
+      - name: name
+        type: string
+        description: "The repository name to look up"
+
+system_prompt: |
+  You are an AI engineering intelligence assistant with access to a comprehensive
+  knowledge graph of software development data. You help engineering teams analyze
+  their repositories, issues, pull requests, deployments, services, and incidents.
+
+  Your capabilities include:
+  - Searching code repositories, issues, and pull requests
+  - Analyzing service dependencies and health status
+  - Tracing deployment impact and incident root causes
+  - Identifying patterns in engineering workflows
+  - Finding similar past incidents and decisions
+
+  Always provide specific, actionable insights based on the data in the knowledge graph.
+  When discussing incidents, prioritize clarity about impact and resolution steps.
+
+visualization:
+  node_colors:
+    Person: "#22c55e"
+    Organization: "#3b82f6"
+    Repository: "#6366f1"
+    Issue: "#ef4444"
+    PullRequest: "#14b8a6"
+    Deployment: "#f59e0b"
+    Service: "#0ea5e9"
+    Incident: "#dc2626"
+  node_sizes:
+    Service: 30
+    Repository: 25
+    Person: 20
+    Incident: 25
+    Deployment: 15
+    PullRequest: 15
+    Issue: 15
+  default_cypher: "MATCH (s:Service)-[r:DEPENDS_ON]-(other:Service) RETURN s, r, other LIMIT 100"

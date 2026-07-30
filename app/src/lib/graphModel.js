@@ -23,7 +23,15 @@ export const LABEL_STYLE = {
   Environment:       { color: '#26C6DA', captionFields: ['name'] },
   SLA:               { color: '#D4E157', captionFields: ['name'] },
   Data:              { color: '#5C6BC0', captionFields: ['name'] },
-  DataCategory:      { color: '#3949AB', captionFields: ['name'] }
+  DataCategory:      { color: '#3949AB', captionFields: ['name'] },
+  VLAN:              { color: '#607D8B', captionFields: ['name'] },
+  Subnet:            { color: '#455A64', captionFields: ['name', 'cidr'] },
+  Approval:          { color: '#CE93D8', captionFields: ['status'] },
+  CostCenter:        { color: '#FDD835', captionFields: ['name'] },
+  Budget:            { color: '#FBC02D', captionFields: ['name'] },
+  ApplicationVersion:{ color: '#64B5F6', captionFields: ['version'] },
+  DataFlow:          { color: '#7E57C2', captionFields: ['name'] },
+  Probe:             { color: '#00BFA5', captionFields: ['name'] }
 };
 
 const DEFAULT_STYLE = { color: '#90A4AE', captionFields: ['name', 'title', 'hostname', 'id'] };
