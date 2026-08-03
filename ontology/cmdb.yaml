@@ -26,8 +26,12 @@ domain:
     Configuration management database for an IT organization: physical and
     virtual infrastructure, containers and applications, data assets and
     classification, network/IPAM, supervision/monitoring, vendors and
-    contracts, cost allocation, and ITSM (incidents, tickets, change
-    requests with multi-step approvals).
+    contracts, cost allocation, ITSM (incidents, tickets, change requests
+    with multi-step approvals), application capability decomposition
+    (business functions realized by software/dev-level artifacts, traced
+    back to source repositories and files), generic master data
+    (reference/code lists and their values), business domain
+    categorization for applications, and DNS aliases for virtual servers.
   tagline: "AI-powered Infrastructure & ITSM Intelligence"
   emoji: "\U0001F5C4"
 
@@ -106,7 +110,7 @@ entity_types:
         enum: [active, maintenance, decommissioned]
       - name: environment
         type: string
-        enum: [prod, staging, dev]
+        enum: [production, pre-production, qualification, development, other]
       - name: cpuCores
         type: integer
       - name: ramGB
@@ -150,7 +154,7 @@ entity_types:
         enum: [active, maintenance, decommissioned]
       - name: environment
         type: string
-        enum: [prod, staging, dev]
+        enum: [production, pre-production, qualification, development, other]
       - name: cpuCores
         type: integer
       - name: ramGB
@@ -190,6 +194,117 @@ entity_types:
         type: integer
 
   # ------------------------------------------------------------------
+  # Network & Assets
+  # ------------------------------------------------------------------
+  - label: Subnet
+    pole_type: OBJECT
+    subtype: SUBNET
+    color: "#455A64"
+    icon: layers
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: cidr
+        type: string
+        required: true
+        unique: true
+      - name: gateway
+        type: string
+      - name: description
+        type: string
+
+  - label: VLAN
+    pole_type: OBJECT
+    subtype: VLAN
+    color: "#607D8B"
+    icon: waypoints
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: vlanId
+        type: integer
+        required: true
+      - name: description
+        type: string
+
+  - label: NetworkInterface
+    pole_type: OBJECT
+    subtype: NETWORK_INTERFACE
+    color: "#78909C"
+    icon: network
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: type
+        type: string
+        enum: [data, management]
+      - name: speedMbps
+        type: integer
+      - name: mac
+        type: string
+
+  - label: IPAddress
+    pole_type: OBJECT
+    subtype: IP_ADDRESS
+    color: "#546E7A"
+    icon: hash
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: address
+        type: string
+        required: true
+        unique: true
+      - name: version
+        type: string
+        enum: [v4, v6]
+      - name: type
+        type: string
+        enum: [private, public]
+      - name: allocation
+        type: string
+        enum: [static, dhcp]
+
+  - label: Alias
+    pole_type: OBJECT
+    subtype: DNS_ALIAS
+    color: "#B0BEC5"
+    icon: at-sign
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: hostname
+        type: string
+        required: true
+        unique: true
+      - name: recordType
+        type: string
+        enum: [CNAME, A]
+      - name: ttl
+        type: integer
+      - name: description
+        type: string
+
+  # ------------------------------------------------------------------
   # Applications & Data
   # ------------------------------------------------------------------
   - label: Application
@@ -212,7 +327,7 @@ entity_types:
         enum: [low, medium, high, critical]
       - name: environment
         type: string
-        enum: [prod, staging, dev]
+        enum: [production, pre-production, qualification, development, other]
       - name: businessService
         type: string
       - name: description
@@ -263,96 +378,7 @@ entity_types:
         type: integer
       - name: environment
         type: string
-        enum: [prod, staging, dev]
-
-  # ------------------------------------------------------------------
-  # Network & Assets
-  # ------------------------------------------------------------------
-  - label: NetworkInterface
-    pole_type: OBJECT
-    subtype: NETWORK_INTERFACE
-    color: "#78909C"
-    icon: network
-    properties:
-      - name: id
-        type: string
-        required: true
-        unique: true
-      - name: name
-        type: string
-        required: true
-      - name: type
-        type: string
-        enum: [data, management]
-      - name: speedMbps
-        type: integer
-      - name: mac
-        type: string
-
-  - label: IPAddress
-    pole_type: OBJECT
-    subtype: IP_ADDRESS
-    color: "#546E7A"
-    icon: hash
-    properties:
-      - name: id
-        type: string
-        required: true
-        unique: true
-      - name: address
-        type: string
-        required: true
-        unique: true
-      - name: version
-        type: string
-        enum: [v4, v6]
-      - name: type
-        type: string
-        enum: [private, public]
-      - name: allocation
-        type: string
-        enum: [static, dhcp]
-
-  - label: VLAN
-    pole_type: OBJECT
-    subtype: VLAN
-    color: "#607D8B"
-    icon: waypoints
-    properties:
-      - name: id
-        type: string
-        required: true
-        unique: true
-      - name: name
-        type: string
-        required: true
-      - name: vlanId
-        type: integer
-        required: true
-      - name: description
-        type: string
-
-  - label: Subnet
-    pole_type: OBJECT
-    subtype: SUBNET
-    color: "#455A64"
-    icon: layers
-    properties:
-      - name: id
-        type: string
-        required: true
-        unique: true
-      - name: name
-        type: string
-        required: true
-      - name: cidr
-        type: string
-        required: true
-        unique: true
-      - name: gateway
-        type: string
-      - name: description
-        type: string
+        enum: [production, pre-production, qualification, development, other]
 
   # ------------------------------------------------------------------
   # Monitoring
@@ -459,6 +485,84 @@ entity_types:
         type: integer
       - name: resolutionTimeHours
         type: integer
+
+  - label: BusinessDomain
+    pole_type: OBJECT
+    subtype: BUSINESS_DOMAIN
+    color: "#673AB7"
+    icon: briefcase
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: description
+        type: string
+
+  - label: MasterDataType
+    pole_type: OBJECT
+    subtype: MASTER_DATA_TYPE
+    color: "#5E35B1"
+    icon: list-tree
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: code
+        type: string
+        required: true
+        unique: true
+      - name: description
+        type: string
+
+  - label: Repository
+    pole_type: OBJECT
+    subtype: CODE_REPOSITORY
+    color: "#37474F"
+    icon: git-branch
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: url
+        type: string
+      - name: vcsType
+        type: string
+        enum: [git, svn, mercurial]
+      - name: defaultBranch
+        type: string
+      - name: description
+        type: string
+
+  - label: SourceFile
+    pole_type: OBJECT
+    subtype: SOURCE_FILE
+    color: "#263238"
+    icon: file-code
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: path
+        type: string
+        required: true
+      - name: language
+        type: string
+      - name: description
+        type: string
 
   # ------------------------------------------------------------------
   # Organization
@@ -715,6 +819,201 @@ entity_types:
       - name: decidedAt
         type: datetime
 
+  # ------------------------------------------------------------------
+  # Application Capabilities
+  # ------------------------------------------------------------------
+  - label: Function
+    pole_type: OBJECT
+    subtype: BUSINESS_FUNCTION
+    color: "#2E7D32"
+    icon: target
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: category
+        type: string
+
+  - label: Menu
+    pole_type: OBJECT
+    subtype: UI_MENU
+    color: "#43A047"
+    icon: menu
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: path
+        type: string
+      - name: description
+        type: string
+      - name: order
+        type: integer
+
+  - label: Form
+    pole_type: OBJECT
+    subtype: UI_FORM
+    color: "#7CB342"
+    icon: clipboard
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: module
+        type: string
+
+  - label: Report
+    pole_type: OBJECT
+    subtype: REPORT
+    color: "#9CCC65"
+    icon: bar-chart
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: format
+        type: string
+        enum: [pdf, excel, csv, html]
+      - name: schedule
+        type: string
+
+  - label: Export
+    pole_type: OBJECT
+    subtype: DATA_EXPORT
+    color: "#C0CA33"
+    icon: download
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: format
+        type: string
+        enum: [csv, json, xml, xlsx]
+      - name: destination
+        type: string
+
+  - label: Algorithm
+    pole_type: OBJECT
+    subtype: ALGORITHM
+    color: "#00ACC1"
+    icon: function-square
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: complexity
+        type: string
+        enum: [low, medium, high]
+      - name: generatedBy
+        type: string
+        enum: [manual, ai-generated]
+      - name: confidence
+        type: float
+      - name: extractedAt
+        type: datetime
+
+  - label: Endpoint
+    pole_type: OBJECT
+    subtype: API_ENDPOINT
+    color: "#00897B"
+    icon: webhook
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: method
+        type: string
+        enum: [GET, POST, PUT, DELETE, PATCH]
+      - name: path
+        type: string
+      - name: protocol
+        type: string
+        enum: [REST, SOAP, GraphQL, gRPC]
+
+  - label: MasterData
+    pole_type: OBJECT
+    subtype: MASTER_DATA_VALUE
+    color: "#7986CB"
+    icon: list
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: code
+        type: string
+      - name: description
+        type: string
+      - name: status
+        type: string
+        enum: [active, inactive]
+      - name: sortOrder
+        type: integer
+
+  - label: SettingFile
+    pole_type: OBJECT
+    subtype: CONFIG_FILE
+    color: "#4DB6AC"
+    icon: settings
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: path
+        type: string
+      - name: format
+        type: string
+        enum: [yaml, json, xml, ini, properties, env]
+      - name: description
+        type: string
+
 relationships:
   # Compute topology
   - type: LOCATED_IN
@@ -834,6 +1133,9 @@ relationships:
   - type: IN_VLAN
     source: Subnet
     target: VLAN
+  - type: ALIAS_OF
+    source: Alias
+    target: VirtualServer
 
   # Vendors / contracts
   - type: SUPPLIED_BY
@@ -862,6 +1164,9 @@ relationships:
   - type: HAS_SLA
     source: Application
     target: SLA
+  - type: IN_BUSINESS_DOMAIN
+    source: Application
+    target: BusinessDomain
 
   # Data & data flows
   - type: OWNS_DATA
@@ -896,6 +1201,88 @@ relationships:
   - type: MONITORS
     source: Probe
     target: Application
+
+  # Application capabilities
+  - type: HAS_FUNCTION
+    source: Application
+    target: Function
+  - type: HAS_MENU
+    source: Application
+    target: Menu
+  - type: HAS_FORM
+    source: Application
+    target: Form
+  - type: HAS_REPORT
+    source: Application
+    target: Report
+  - type: HAS_EXPORT
+    source: Application
+    target: Export
+  - type: HAS_ENDPOINT
+    source: Application
+    target: Endpoint
+  - type: HAS_SETTING_FILE
+    source: Application
+    target: SettingFile
+  - type: HAS_ALGORITHM
+    source: Application
+    target: Algorithm
+  - type: SOURCE_REPOSITORY
+    source: Application
+    target: Repository
+  - type: CONTAINS_FILE
+    source: Repository
+    target: SourceFile
+  - type: REALIZED_BY
+    source: Function
+    target: Menu
+  - type: REALIZED_BY
+    source: Function
+    target: Form
+  - type: REALIZED_BY
+    source: Function
+    target: Report
+  - type: REALIZED_BY
+    source: Function
+    target: Export
+  - type: REALIZED_BY
+    source: Function
+    target: Endpoint
+  - type: REALIZED_BY
+    source: Function
+    target: SettingFile
+  - type: REALIZED_BY
+    source: Function
+    target: Algorithm
+  - type: DEFINED_IN
+    source: Function
+    target: SourceFile
+  - type: DEFINED_IN
+    source: Menu
+    target: SourceFile
+  - type: DEFINED_IN
+    source: Form
+    target: SourceFile
+  - type: DEFINED_IN
+    source: Report
+    target: SourceFile
+  - type: DEFINED_IN
+    source: Export
+    target: SourceFile
+  - type: DEFINED_IN
+    source: Endpoint
+    target: SourceFile
+  - type: DEFINED_IN
+    source: SettingFile
+    target: SourceFile
+  - type: DEFINED_IN
+    source: Algorithm
+    target: SourceFile
+
+  # Master data
+  - type: OF_TYPE
+    source: MasterData
+    target: MasterDataType
 
 document_templates:
   - id: incident_postmortem
@@ -1022,7 +1409,7 @@ decision_traces:
         action: "Query each physical server's hosted VMs and sum allocated vCPU/RAM against host capacity"
       - thought: "Identify hosts nearing saturation"
         action: "Rank hosts by allocated-to-available ratio"
-      - thought: "Check environment split (prod vs staging vs dev)"
+      - thought: "Check environment split (production vs. pre-production vs. qualification vs. development)"
         action: "Query IN_ENVIRONMENT relationships for the datacenter's servers"
       - thought: "Review vendor lead time for new hardware"
         action: "Query recent contracts and vendors for the datacenter"
@@ -1035,7 +1422,7 @@ decision_traces:
         action: "Query CLASSIFIED_AS then OWNS_DATA/CONSUMES_DATA back to Application"
       - thought: "Check for recent incidents involving this data"
         action: "Query IMPACTS relationships from Incident to Data in this category"
-      - thought: "Verify environment placement (prod data should not leak to dev)"
+      - thought: "Verify environment placement (production data should not leak to development)"
         action: "Query IN_ENVIRONMENT for each data asset in this category"
     outcome_template: "Compliance status: {{status}}. Applications in scope: {{app_count}}. Open findings: {{findings}}"
 
@@ -1063,6 +1450,17 @@ decision_traces:
         action: "Query the HAS_BUDGET relationship's amount for the fiscal year"
     outcome_template: "Budget status: {{status}}. Allocated: {{amount}} {{currency}}. Charged applications: {{app_count}}"
 
+  - id: ai_extracted_algorithm_review
+    task: "Review AI-extracted algorithm {{algorithm.name}} for accuracy before relying on it"
+    steps:
+      - thought: "Check how confident the extraction was and when it ran"
+        action: "Query the algorithm's generatedBy, confidence, and extractedAt properties"
+      - thought: "Find the source file it was parsed from, to compare against the original code"
+        action: "Query the algorithm's DEFINED_IN relationship to SourceFile and its Repository"
+      - thought: "Identify the business function it implements, to assess the impact of an error"
+        action: "Query the REALIZED_BY relationship back to Function and the owning Application's criticality"
+    outcome_template: "Review outcome: {{outcome}}. Confidence: {{confidence}}. Needs re-extraction: {{needs_rerun}}"
+
 demo_scenarios:
   - name: Infrastructure Topology
     prompts:
@@ -1087,6 +1485,12 @@ demo_scenarios:
       - "Which support contracts expire in the next 90 days?"
       - "What's the budget status for the Platform cost center?"
       - "Are any supervision probes currently in a warning or critical state?"
+
+  - name: Application Capabilities & Source Traceability
+    prompts:
+      - "What business functions does the Order API provide?"
+      - "Which source files implement the order pricing algorithm?"
+      - "Which algorithms were extracted by AI and still need human review?"
 
 agent_tools:
   - name: search_entity
@@ -1207,6 +1611,67 @@ agent_tools:
              count(DISTINCT app) AS charged_applications
       ORDER BY budget DESC
 
+  - name: get_application_capabilities
+    description: Business functions of an application, what realizes them, and the source files behind each artifact
+    cypher: |
+      MATCH (app:Application {id: $application_id})-[:HAS_FUNCTION]->(fn:Function)
+      OPTIONAL MATCH (fn)-[:REALIZED_BY]->(artifact)
+      OPTIONAL MATCH (artifact)-[:DEFINED_IN]->(sf:SourceFile)
+      RETURN fn.name AS function, fn.category AS category,
+             collect(DISTINCT {type: labels(artifact)[0], name: artifact.name}) AS realizedBy,
+             collect(DISTINCT sf.path) AS sourceFiles
+    parameters:
+      - name: application_id
+        type: string
+        description: Application id
+
+  - name: get_ai_extracted_algorithms
+    description: Algorithms extracted by AI source-code parsing, pending human review, most uncertain first
+    cypher: |
+      MATCH (al:Algorithm {generatedBy: 'ai-generated'})
+      OPTIONAL MATCH (app:Application)-[:HAS_ALGORITHM]->(al)
+      OPTIONAL MATCH (al)-[:DEFINED_IN]->(sf:SourceFile)
+      RETURN app.name AS application, al.name AS algorithm, al.confidence AS confidence,
+             al.extractedAt AS extracted_at, collect(DISTINCT sf.path) AS sourceFiles
+      ORDER BY confidence ASC
+      LIMIT $limit
+    parameters:
+      - name: limit
+        type: integer
+        default: 20
+
+  - name: get_master_data_values
+    description: All values of a given master data type (reference/code list), in display order
+    cypher: |
+      MATCH (t:MasterDataType {code: $type_code})<-[:OF_TYPE]-(m:MasterData)
+      RETURN m.name AS value, m.code AS code, m.status AS status
+      ORDER BY m.sortOrder
+    parameters:
+      - name: type_code
+        type: string
+        description: MasterDataType code, e.g. 'COUNTRY' or 'PRIORITY'
+
+  - name: get_applications_by_business_domain
+    description: Applications in a given business domain, with criticality
+    cypher: |
+      MATCH (b:BusinessDomain {name: $domain_name})<-[:IN_BUSINESS_DOMAIN]-(a:Application)
+      RETURN a.name AS application, a.criticality AS criticality, a.environment AS environment
+      ORDER BY a.criticality DESC
+    parameters:
+      - name: domain_name
+        type: string
+        description: Business domain name, e.g. 'E-commerce' or 'Platform'
+
+  - name: get_virtual_server_aliases
+    description: DNS aliases pointing at a given virtual server
+    cypher: |
+      MATCH (v:VirtualServer {id: $server_id})<-[:ALIAS_OF]-(al:Alias)
+      RETURN v.hostname AS server, al.hostname AS alias, al.recordType AS record_type, al.ttl AS ttl
+    parameters:
+      - name: server_id
+        type: string
+        description: VirtualServer id
+
 system_prompt: |
   You are an AI CMDB assistant with access to a comprehensive knowledge
   graph of an IT organization's configuration data: physical and virtual
@@ -1222,6 +1687,9 @@ system_prompt: |
   - Tracking data lineage and regulatory exposure across applications
   - Finding contracts nearing expiration and cost center budget status
   - Surfacing active monitoring alerts and what they affect
+  - Mapping an application's business functions to the software/dev-level
+    artifacts that realize them and the source files behind each one,
+    including flagging AI-extracted algorithms that still need human review
 
   Always ground answers in the graph - cite specific hostnames, application
   names, incident/change ids, and relationship paths rather than general
@@ -1257,6 +1725,20 @@ visualization:
     ChangeRequest: "#AB47BC"
     ApplicationVersion: "#64B5F6"
     Approval: "#CE93D8"
+    Function: "#2E7D32"
+    Menu: "#43A047"
+    Form: "#7CB342"
+    Report: "#9CCC65"
+    Export: "#C0CA33"
+    Endpoint: "#00897B"
+    SettingFile: "#4DB6AC"
+    Algorithm: "#00ACC1"
+    Repository: "#37474F"
+    SourceFile: "#263238"
+    MasterDataType: "#5E35B1"
+    MasterData: "#7986CB"
+    BusinessDomain: "#673AB7"
+    Alias: "#B0BEC5"
   node_sizes:
     Application: 30
     PhysicalServer: 28
@@ -1270,4 +1752,6 @@ visualization:
     Person: 15
     NetworkInterface: 10
     IPAddress: 10
+    Function: 20
+    Repository: 20
   default_cypher: "MATCH (a:Application)-[r:DEPENDS_ON]-(other:Application) RETURN a, r, other LIMIT 100"

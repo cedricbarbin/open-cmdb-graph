@@ -181,6 +181,30 @@ export async function updateNodeProperties({ elementId, properties, replace = fa
   return records[0]?.get('n');
 }
 
+/** Ids (from the given candidate set) that already exist for a label - used
+ * by CSV import to decide, per row, whether to create a new node or offer
+ * to replace/ignore an existing one. */
+export async function findExistingIds({ matchLabel, ids }, database) {
+  if (ids.length === 0) return [];
+  const safeLabel = backtick(assertValidIdentifier(matchLabel, 'label'));
+  const cypher = `MATCH (n:${safeLabel}) WHERE n.id IN $ids RETURN n.id AS id`;
+  const records = await runQuery(cypher, { ids }, database);
+  return records.map((r) => r.get('id'));
+}
+
+/** Replaces an existing node's properties, matched by its business `id`
+ * property rather than elementId - a CSV row only carries `id`, not a live
+ * elementId from a current query result (same reasoning as
+ * createRelationshipByBusinessId below). Labels are left untouched, since
+ * the matched node already carries the labels for its type. Used by CSV
+ * import's "replace existing" mode. */
+export async function replaceNodeByBusinessId({ id, properties }, database) {
+  const cypher = `MATCH (n {id: $id}) SET n = $properties RETURN n`;
+  const records = await runQuery(cypher, { id, properties }, database);
+  if (records.length === 0) throw new Error(`No node found with id "${id}"`);
+  return records[0].get('n');
+}
+
 export async function addLabel({ elementId, label }, database) {
   const safeLabel = backtick(assertValidIdentifier(label, 'label'));
   const cypher = `MATCH (n) WHERE elementId(n) = $elementId SET n:${safeLabel} RETURN n`;

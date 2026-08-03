@@ -137,17 +137,39 @@ through the familiar edit form, just without any way to change it.
 `app/src/lib/formUtils.js` exports `buildProperties` (form-value → property
 coercion: number/date/datetime), used by both `EntityFormModal.jsx`'s
 manual Create/Edit and `app/src/lib/csvImport.js`'s `importNodesFromCsvText`
-(one `createNode` call per CSV row, scoped to `typeDef.fields` — no
-relationship import, since there's no autocomplete to resolve a spreadsheet
-cell against). CSV headers are matched against `typeDef.fields` by key or
-by label, case-insensitively, so both "Get CSV template" output (keys) and
-"Export CSV" output (labels) import cleanly. `csvImport.js` also exports
+(one row per node, scoped to `typeDef.fields` — no relationship import,
+since there's no autocomplete to resolve a spreadsheet cell against). CSV
+headers are matched against `typeDef.fields` by key or by label,
+case-insensitively, so both "Get CSV template" output (keys) and "Export
+CSV" output (labels) import cleanly. `csvImport.js` also exports
 `importRelationshipsFromCsvText` (`relType,fromId,toId` rows, matched by
 the `id` property via `createRelationshipByBusinessId` in `neo4j.js` — not
 elementId, since a CSV cell has no live elementId to reference). `EntityListScreen.jsx`
 (single type) and `app/src/lib/backup.js` (multiple types at once, zipped
 with `jszip` — `BackupRestorePage.jsx`) both call into this same
 `csvImport.js` layer rather than duplicating the row-loop/validation logic.
+
+**Import replace/ignore prompt**: `importNodesFromCsvText`'s 4th parameter,
+`onExisting` (`'replace' | 'ignore' | 'fail'`, default `'fail'`), controls
+what happens to a row whose `id` already exists — `'replace'` calls the new
+`replaceNodeByBusinessId` in `neo4j.js` (`MATCH (n {id: $id}) SET n =
+$properties`, matched on the business `id` property since a CSV row has no
+elementId), `'ignore'` skips the row untouched, `'fail'` is the old
+CREATE-only behavior (a duplicate id is rejected by the uniqueness
+constraint and recorded as a per-row failure). Which ids already exist is
+resolved once per import via the new `findExistingIds` in `neo4j.js`
+(`MATCH (n:Label) WHERE n.id IN $ids`), not by catching constraint-violation
+errors row by row. Both call sites — `EntityListScreen.jsx`'s "Import CSV"
+and `BackupRestorePage.jsx`'s "Restore ZIP" (via `backup.js`'s
+`restoreBackupZip`, which threads `onExisting` uniformly to every type in
+the archive) — hold the parsed file/CSV text in state after selection and
+render the shared `app/src/components/ImportModeModal.jsx` (Replace
+existing / Ignore existing / Cancel) before actually calling
+`importNodesFromCsvText`; the import summary shape grew from `{ total,
+created, failed }` to `{ total, created, replaced, ignored, failed }`
+accordingly. `importRelationshipsFromCsvText` is unaffected — relationships
+have no uniqueness constraint to collide with, so re-importing
+`relationships.csv` still always creates.
 
 **State/routing**: `ConnectionContext.jsx` (React context) holds the driver
 connection, detected profile, and cached schema (`knownLabels`/`knownTypes`

@@ -139,6 +139,14 @@ MATCH (s:Server)-[:HAS_INTERFACE]->(nic:NetworkInterface {type: 'management'})-[
 RETURN s.hostname AS server, nic.name AS interface, ip.address AS ipAddress
 ORDER BY server;
 
+// E4. DNS aliases for a given virtual server
+MATCH (v:Server:Virtual {id: 'vm-web-01'})<-[:ALIAS_OF]-(al:Alias)
+RETURN v.hostname AS server, al.hostname AS alias, al.recordType AS recordType, al.ttl AS ttl;
+
+// E5. Reverse lookup: which virtual server a DNS alias resolves to
+MATCH (al:Alias {hostname: 'shop.example.com'})-[:ALIAS_OF]->(v:Server:Virtual)
+RETURN al.hostname AS alias, v.hostname AS server, v.ipAddress AS ipAddress;
+
 // ---------------------------------------------------------------------
 // F. VENDORS / CONTRACTS (asset & warranty tracking)
 // ---------------------------------------------------------------------
@@ -193,8 +201,8 @@ RETURN c.title AS change, requester.name AS requestedBy, approver.name AS approv
 // H. ENVIRONMENTS / SLAs
 // ---------------------------------------------------------------------
 
-// H1. Everything running in staging (first-class Environment node, not a property filter)
-MATCH (e:Environment {name: 'staging'})<-[:IN_ENVIRONMENT]-(res)
+// H1. Everything running in pre-production (first-class Environment node, not a property filter)
+MATCH (e:Environment {name: 'pre-production'})<-[:IN_ENVIRONMENT]-(res)
 OPTIONAL MATCH (res)<-[:RUNS_ON]-(ctr:Container)
 RETURN e.name AS environment, res, collect(ctr) AS containers;
 
@@ -208,7 +216,7 @@ ORDER BY sla.uptimeTargetPct DESC;
 // H3. Move an application (and everything it depends on operationally) into a new environment
 // - illustrates that Environment membership is just a relationship to re-target
 MATCH (a:Application {id: 'app-crm'})
-MATCH (e:Environment {name: 'staging'})
+MATCH (e:Environment {name: 'pre-production'})
 MERGE (a)-[:IN_ENVIRONMENT]->(e);
 
 // ---------------------------------------------------------------------
@@ -371,6 +379,77 @@ WHERE probeCount = 0
 RETURN labels(target) AS targetLabels, coalesce(target.hostname, target.name) AS unmonitoredResource;
 
 // ---------------------------------------------------------------------
+// R. APPLICATION CAPABILITIES & SOURCE TRACEABILITY (business-level
+// Functions realized by software/dev-level Menus/Forms/Reports/Exports/
+// Endpoints/SettingFiles/Algorithms, traced back to source files)
+// ---------------------------------------------------------------------
+
+// R1. Business capabilities (Functions) of a given application
+MATCH (a:Application {id: 'app-orderapi'})-[:HAS_FUNCTION]->(fn:Function)
+RETURN fn.name AS function, fn.category AS category, fn.description AS description;
+
+// R2. What realizes a given business function, and which source files
+//     implement each artifact (the full business -> software/dev chain)
+MATCH (fn:Function {id: 'func-order-placement'})-[:REALIZED_BY]->(artifact)
+OPTIONAL MATCH (artifact)-[:DEFINED_IN]->(sf:SourceFile)
+RETURN fn.name AS function, labels(artifact) AS artifactType, artifact.name AS artifact,
+       collect(DISTINCT sf.path) AS sourceFiles;
+
+// R3. Every software/dev-level artifact an application owns, grouped by type
+//     (Menu/Form/Report/Export/Endpoint/SettingFile/Algorithm)
+MATCH (a:Application {id: 'app-orderapi'})-[r]->(artifact)
+WHERE type(r) IN ['HAS_MENU','HAS_FORM','HAS_REPORT','HAS_EXPORT','HAS_ENDPOINT','HAS_SETTING_FILE','HAS_ALGORITHM']
+RETURN labels(artifact) AS artifactType, artifact.name AS artifact;
+
+// R4. Algorithms extracted by AI parsing, pending human review
+MATCH (al:Algorithm {generatedBy: 'ai-generated'})
+OPTIONAL MATCH (a:Application)-[:HAS_ALGORITHM]->(al)
+RETURN a.name AS application, al.name AS algorithm, al.confidence AS confidence, al.extractedAt AS extractedAt
+ORDER BY al.confidence ASC;
+
+// R5. An application's source repositories and the files in each
+MATCH (a:Application {id: 'app-orderapi'})-[:SOURCE_REPOSITORY]->(r:Repository)
+OPTIONAL MATCH (r)-[:CONTAINS_FILE]->(sf:SourceFile)
+RETURN r.name AS repository, r.url AS url, collect(DISTINCT sf.path) AS files;
+
+// ---------------------------------------------------------------------
+// S. MASTER DATA / REFERENCE LISTS (generic code lists used across the CMDB)
+// ---------------------------------------------------------------------
+
+// S1. Every master data type with its values, ordered for display
+MATCH (t:MasterDataType)<-[:OF_TYPE]-(m:MasterData)
+RETURN t.name AS type, t.code AS typeCode,
+       collect(m.name) AS values
+ORDER BY type;
+
+// S2. All values of a given master data type, in display order
+MATCH (t:MasterDataType {code: 'COUNTRY'})<-[:OF_TYPE]-(m:MasterData)
+RETURN m.name AS value, m.code AS code, m.status AS status
+ORDER BY m.sortOrder;
+
+// S3. Master data types with no values yet (empty reference lists)
+MATCH (t:MasterDataType)
+OPTIONAL MATCH (t)<-[:OF_TYPE]-(m:MasterData)
+WITH t, count(m) AS valueCount
+WHERE valueCount = 0
+RETURN t.name AS emptyType;
+
+// ---------------------------------------------------------------------
+// T. BUSINESS DOMAINS (first-class categorization for Application)
+// ---------------------------------------------------------------------
+
+// T1. Applications grouped by business domain
+MATCH (b:BusinessDomain)
+OPTIONAL MATCH (b)<-[:IN_BUSINESS_DOMAIN]-(a:Application)
+RETURN b.name AS businessDomain, collect(a.name) AS applications
+ORDER BY businessDomain;
+
+// T2. Applications with no business domain assigned yet
+MATCH (a:Application)
+WHERE NOT (a)-[:IN_BUSINESS_DOMAIN]->(:BusinessDomain)
+RETURN a.name AS application, a.businessService AS legacyBusinessServiceProperty;
+
+// ---------------------------------------------------------------------
 // Q. WRITE OPERATIONS (create / update / delete)
 // These mirror what the web app does through its Add/Edit/Delete forms.
 // ---------------------------------------------------------------------
@@ -383,7 +462,7 @@ CREATE (s:Server:Physical {
   os: 'VMware ESXi',
   osVersion: '8.0',
   status: 'active',
-  environment: 'prod',
+  environment: 'production',
   cpuCores: 64,
   ramGB: 512,
   diskGB: 8000,
@@ -401,7 +480,7 @@ MERGE (s)-[:LOCATED_IN]->(l);
 MATCH (host:Server:Physical {id: 'srv-phy-005'})
 CREATE (vm:Server:Virtual {
   id: 'vm-web-03', hostname: 'web-03.prod.local', ipAddress: '10.10.2.13',
-  os: 'Ubuntu', osVersion: '22.04', status: 'active', environment: 'prod',
+  os: 'Ubuntu', osVersion: '22.04', status: 'active', environment: 'production',
   cpuCores: 4, ramGB: 16, diskGB: 100, hypervisor: 'ESXi', vCpu: 4
 })-[:HOSTED_ON]->(host)
 RETURN vm;

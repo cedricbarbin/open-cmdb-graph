@@ -52,8 +52,10 @@ export async function buildBackupZip({ typeKeys, database }) {
  * (nodes have no cross-file dependency), then relationships.csv last, so
  * the ids it references already exist. Unrecognized files (a foreign zip,
  * or an entry for a type this app no longer knows) are silently ignored
- * rather than failing the whole restore. */
-export async function restoreBackupZip({ file, database }) {
+ * rather than failing the whole restore. `onExisting` ('replace' | 'ignore'
+ * | 'fail', see importNodesFromCsvText) applies uniformly to every type in
+ * the archive - the caller asks once for the whole restore, not per type. */
+export async function restoreBackupZip({ file, database, onExisting = 'fail' }) {
   const { default: JSZip } = await import('jszip');
   const zip = await JSZip.loadAsync(file);
   const results = { types: [], relationships: null };
@@ -68,7 +70,7 @@ export async function restoreBackupZip({ file, database }) {
     if (!typeDef) continue;
 
     const text = await entry.async('string');
-    const summary = await importNodesFromCsvText(typeDef, text, database);
+    const summary = await importNodesFromCsvText(typeDef, text, database, onExisting);
     results.types.push({ key, label: typeDef.pluralLabel, ...summary });
   }
 

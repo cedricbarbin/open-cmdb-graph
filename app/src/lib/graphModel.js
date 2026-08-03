@@ -31,7 +31,21 @@ export const LABEL_STYLE = {
   Budget:            { color: '#FBC02D', captionFields: ['name'] },
   ApplicationVersion:{ color: '#64B5F6', captionFields: ['version'] },
   DataFlow:          { color: '#7E57C2', captionFields: ['name'] },
-  Probe:             { color: '#00BFA5', captionFields: ['name'] }
+  Probe:             { color: '#00BFA5', captionFields: ['name'] },
+  Function:          { color: '#2E7D32', captionFields: ['name'] },
+  Menu:              { color: '#43A047', captionFields: ['name'] },
+  Form:              { color: '#7CB342', captionFields: ['name'] },
+  Report:            { color: '#9CCC65', captionFields: ['name'] },
+  Export:            { color: '#C0CA33', captionFields: ['name'] },
+  Endpoint:          { color: '#00897B', captionFields: ['name'] },
+  SettingFile:       { color: '#4DB6AC', captionFields: ['name'] },
+  Algorithm:         { color: '#00ACC1', captionFields: ['name'] },
+  Repository:        { color: '#37474F', captionFields: ['name'] },
+  SourceFile:        { color: '#263238', captionFields: ['path'] },
+  MasterDataType:    { color: '#5E35B1', captionFields: ['name'] },
+  MasterData:        { color: '#7986CB', captionFields: ['name'] },
+  BusinessDomain:    { color: '#673AB7', captionFields: ['name'] },
+  Alias:             { color: '#B0BEC5', captionFields: ['hostname'] }
 };
 
 const DEFAULT_STYLE = { color: '#90A4AE', captionFields: ['name', 'title', 'hostname', 'id'] };

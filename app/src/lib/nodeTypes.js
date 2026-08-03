@@ -30,7 +30,7 @@
 // =====================================================================
 
 const STATUS_ACTIVE = ['active', 'maintenance', 'decommissioned'];
-const ENVIRONMENTS = ['prod', 'staging', 'dev'];
+const ENVIRONMENTS = ['production', 'pre-production', 'qualification', 'development', 'other'];
 
 export const NODE_TYPES = [
   // ------------------------------------------------------------------
@@ -154,7 +154,8 @@ export const NODE_TYPES = [
     relationships: [
       { key: 'hostedOn', label: 'Physical host (on-prem)', relType: 'HOSTED_ON', direction: 'out', targetLabels: ['Physical'], cardinality: 'one' },
       { key: 'cloudRegion', label: 'Cloud region (cloud-native)', relType: 'LOCATED_IN', direction: 'out', targetLabels: ['CloudRegion'], cardinality: 'one' },
-      { key: 'probes', label: 'Monitoring probes', relType: 'MONITORS', direction: 'in', targetLabels: ['Probe'], cardinality: 'many' }
+      { key: 'probes', label: 'Monitoring probes', relType: 'MONITORS', direction: 'in', targetLabels: ['Probe'], cardinality: 'many' },
+      { key: 'aliases', label: 'DNS aliases', relType: 'ALIAS_OF', direction: 'in', targetLabels: ['Alias'], cardinality: 'many' }
     ]
   },
   {
@@ -187,6 +188,127 @@ export const NODE_TYPES = [
   },
 
   // ------------------------------------------------------------------
+  // Network & Assets
+  // ------------------------------------------------------------------
+  {
+    key: 'subnet',
+    label: 'Subnet',
+    pluralLabel: 'Subnets',
+    category: 'Network & Assets',
+    labels: ['Subnet'],
+    matchLabel: 'Subnet',
+    idPrefix: 'subnet',
+    sortField: 'cidr',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'cidr', label: 'CIDR' }, { key: 'gateway', label: 'Gateway' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'cidr', label: 'CIDR', required: true },
+      { key: 'gateway', label: 'Gateway' },
+      { key: 'description', label: 'Description', inputType: 'textarea' }
+    ],
+    relationships: [
+      { key: 'inVlan', label: 'VLAN', relType: 'IN_VLAN', direction: 'out', targetLabels: ['VLAN'], cardinality: 'one' }
+    ]
+  },
+  {
+    key: 'vlan',
+    label: 'VLAN',
+    pluralLabel: 'VLANs',
+    category: 'Network & Assets',
+    labels: ['VLAN'],
+    matchLabel: 'VLAN',
+    idPrefix: 'vlan',
+    sortField: 'vlanId',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'vlanId', label: 'VLAN ID' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'vlanId', label: 'VLAN ID', inputType: 'number', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' }
+    ],
+    relationships: [
+      { key: 'subnets', label: 'Subnets', relType: 'IN_VLAN', direction: 'in', targetLabels: ['Subnet'], cardinality: 'many' }
+    ]
+  },
+  {
+    key: 'networkinterface',
+    label: 'Network Interface',
+    pluralLabel: 'Network Interfaces',
+    category: 'Network & Assets',
+    labels: ['NetworkInterface'],
+    matchLabel: 'NetworkInterface',
+    idPrefix: 'nic',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'type', label: 'Type' },
+      { key: 'speedMbps', label: 'Speed (Mbps)' }, { key: 'mac', label: 'MAC' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'type', label: 'Type', options: ['data', 'management'] },
+      { key: 'speedMbps', label: 'Speed (Mbps)', inputType: 'number' },
+      { key: 'mac', label: 'MAC address' }
+    ],
+    relationships: [
+      { key: 'installedOn', label: 'Installed on (server)', relType: 'HAS_INTERFACE', direction: 'in', targetLabels: ['Server'], cardinality: 'one', required: true }
+    ]
+  },
+  {
+    key: 'ipaddress',
+    label: 'IP Address',
+    pluralLabel: 'IP Addresses',
+    category: 'Network & Assets',
+    labels: ['IPAddress'],
+    matchLabel: 'IPAddress',
+    idPrefix: 'ip',
+    sortField: 'address',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'address', label: 'Address' }, { key: 'version', label: 'Version' },
+      { key: 'type', label: 'Type' }, { key: 'allocation', label: 'Allocation' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'address', label: 'Address', required: true },
+      { key: 'version', label: 'Version', options: ['v4', 'v6'] },
+      { key: 'type', label: 'Type', options: ['private', 'public'] },
+      { key: 'allocation', label: 'Allocation', options: ['static', 'dhcp'] }
+    ],
+    relationships: [
+      { key: 'onInterface', label: 'Network interface', relType: 'HAS_IP', direction: 'in', targetLabels: ['NetworkInterface'], cardinality: 'one', required: true },
+      { key: 'inSubnet', label: 'Subnet', relType: 'IN_SUBNET', direction: 'out', targetLabels: ['Subnet'], cardinality: 'one' }
+    ]
+  },
+  {
+    key: 'alias',
+    label: 'Alias',
+    pluralLabel: 'Aliases',
+    category: 'Network & Assets',
+    labels: ['Alias'],
+    matchLabel: 'Alias',
+    idPrefix: 'alias',
+    sortField: 'hostname',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'hostname', label: 'Hostname' }, { key: 'recordType', label: 'Record type' }, { key: 'ttl', label: 'TTL' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'hostname', label: 'Hostname', required: true },
+      { key: 'recordType', label: 'Record type', options: ['CNAME', 'A'] },
+      { key: 'ttl', label: 'TTL (seconds)', inputType: 'number' },
+      { key: 'description', label: 'Description', inputType: 'textarea' }
+    ],
+    relationships: [
+      { key: 'server', label: 'Virtual server', relType: 'ALIAS_OF', direction: 'out', targetLabels: ['Virtual'], cardinality: 'one', required: true }
+    ]
+  },
+
+  // ------------------------------------------------------------------
   // Applications & Data
   // ------------------------------------------------------------------
   {
@@ -215,10 +337,20 @@ export const NODE_TYPES = [
       { key: 'dependsOn', label: 'Depends on (applications)', relType: 'DEPENDS_ON', direction: 'out', targetLabels: ['Application'], cardinality: 'many' },
       { key: 'hasSla', label: 'SLA', relType: 'HAS_SLA', direction: 'out', targetLabels: ['SLA'], cardinality: 'one' },
       { key: 'inEnvironment', label: 'Environment (node)', relType: 'IN_ENVIRONMENT', direction: 'out', targetLabels: ['Environment'], cardinality: 'one' },
+      { key: 'inBusinessDomain', label: 'Business domain (node)', relType: 'IN_BUSINESS_DOMAIN', direction: 'out', targetLabels: ['BusinessDomain'], cardinality: 'one' },
       { key: 'chargedTo', label: 'Cost center', relType: 'CHARGED_TO', direction: 'out', targetLabels: ['CostCenter'], cardinality: 'one' },
       { key: 'versions', label: 'Version history', relType: 'HAD_VERSION', direction: 'out', targetLabels: ['ApplicationVersion'], cardinality: 'many' },
       { key: 'implementsFlows', label: 'Implements (data flows)', relType: 'IMPLEMENTS', direction: 'out', targetLabels: ['DataFlow'], cardinality: 'many' },
-      { key: 'probes', label: 'Monitoring probes', relType: 'MONITORS', direction: 'in', targetLabels: ['Probe'], cardinality: 'many' }
+      { key: 'probes', label: 'Monitoring probes', relType: 'MONITORS', direction: 'in', targetLabels: ['Probe'], cardinality: 'many' },
+      { key: 'hasFunctions', label: 'Business functions', relType: 'HAS_FUNCTION', direction: 'out', targetLabels: ['Function'], cardinality: 'many' },
+      { key: 'hasMenus', label: 'Menus', relType: 'HAS_MENU', direction: 'out', targetLabels: ['Menu'], cardinality: 'many' },
+      { key: 'hasForms', label: 'Forms', relType: 'HAS_FORM', direction: 'out', targetLabels: ['Form'], cardinality: 'many' },
+      { key: 'hasReports', label: 'Reports', relType: 'HAS_REPORT', direction: 'out', targetLabels: ['Report'], cardinality: 'many' },
+      { key: 'hasExports', label: 'Exports', relType: 'HAS_EXPORT', direction: 'out', targetLabels: ['Export'], cardinality: 'many' },
+      { key: 'hasEndpoints', label: 'Web service endpoints', relType: 'HAS_ENDPOINT', direction: 'out', targetLabels: ['Endpoint'], cardinality: 'many' },
+      { key: 'hasSettingFiles', label: 'Setting files', relType: 'HAS_SETTING_FILE', direction: 'out', targetLabels: ['SettingFile'], cardinality: 'many' },
+      { key: 'hasAlgorithms', label: 'Algorithms', relType: 'HAS_ALGORITHM', direction: 'out', targetLabels: ['Algorithm'], cardinality: 'many' },
+      { key: 'sourceRepositories', label: 'Source repositories', relType: 'SOURCE_REPOSITORY', direction: 'out', targetLabels: ['Repository'], cardinality: 'many' }
     ]
   },
   {
@@ -276,100 +408,236 @@ export const NODE_TYPES = [
   },
 
   // ------------------------------------------------------------------
-  // Network & Assets
+  // Application Capabilities
+  // Business-level Function nodes, realized by software/dev-level
+  // artifacts (Menu/Form/Report/Export/Algorithm/Endpoint/SettingFile),
+  // traced back to Repository/SourceFile in "IT Master Data" below -
+  // see README section 1.
   // ------------------------------------------------------------------
   {
-    key: 'networkinterface',
-    label: 'Network Interface',
-    pluralLabel: 'Network Interfaces',
-    category: 'Network & Assets',
-    labels: ['NetworkInterface'],
-    matchLabel: 'NetworkInterface',
-    idPrefix: 'nic',
+    key: 'function',
+    label: 'Function',
+    pluralLabel: 'Functions',
+    category: 'Application Capabilities',
+    labels: ['Function'],
+    matchLabel: 'Function',
+    idPrefix: 'func',
     sortField: 'name',
     columns: [
-      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'type', label: 'Type' },
-      { key: 'speedMbps', label: 'Speed (Mbps)' }, { key: 'mac', label: 'MAC' }
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'category', label: 'Category' }
     ],
     fields: [
       { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
       { key: 'name', label: 'Name', required: true },
-      { key: 'type', label: 'Type', options: ['data', 'management'] },
-      { key: 'speedMbps', label: 'Speed (Mbps)', inputType: 'number' },
-      { key: 'mac', label: 'MAC address' }
+      { key: 'description', label: 'Description', inputType: 'textarea' },
+      { key: 'category', label: 'Category' }
     ],
     relationships: [
-      { key: 'installedOn', label: 'Installed on (server)', relType: 'HAS_INTERFACE', direction: 'in', targetLabels: ['Server'], cardinality: 'one', required: true }
+      { key: 'application', label: 'Application', relType: 'HAS_FUNCTION', direction: 'in', targetLabels: ['Application'], cardinality: 'one', required: true },
+      { key: 'realizedBy', label: 'Realized by (menus/forms/reports/exports/endpoints/settings/algorithms)', relType: 'REALIZED_BY', direction: 'out', targetLabels: ['Menu', 'Form', 'Report', 'Export', 'Endpoint', 'SettingFile', 'Algorithm'], cardinality: 'many' },
+      { key: 'definedIn', label: 'Defined in (source files)', relType: 'DEFINED_IN', direction: 'out', targetLabels: ['SourceFile'], cardinality: 'many' }
     ]
   },
   {
-    key: 'ipaddress',
-    label: 'IP Address',
-    pluralLabel: 'IP Addresses',
-    category: 'Network & Assets',
-    labels: ['IPAddress'],
-    matchLabel: 'IPAddress',
-    idPrefix: 'ip',
-    sortField: 'address',
+    key: 'menu',
+    label: 'Menu',
+    pluralLabel: 'Menus',
+    category: 'Application Capabilities',
+    labels: ['Menu'],
+    matchLabel: 'Menu',
+    idPrefix: 'menu',
+    sortField: 'name',
     columns: [
-      { key: 'id', label: 'ID' }, { key: 'address', label: 'Address' }, { key: 'version', label: 'Version' },
-      { key: 'type', label: 'Type' }, { key: 'allocation', label: 'Allocation' }
-    ],
-    fields: [
-      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
-      { key: 'address', label: 'Address', required: true },
-      { key: 'version', label: 'Version', options: ['v4', 'v6'] },
-      { key: 'type', label: 'Type', options: ['private', 'public'] },
-      { key: 'allocation', label: 'Allocation', options: ['static', 'dhcp'] }
-    ],
-    relationships: [
-      { key: 'onInterface', label: 'Network interface', relType: 'HAS_IP', direction: 'in', targetLabels: ['NetworkInterface'], cardinality: 'one', required: true },
-      { key: 'inSubnet', label: 'Subnet', relType: 'IN_SUBNET', direction: 'out', targetLabels: ['Subnet'], cardinality: 'one' }
-    ]
-  },
-  {
-    key: 'vlan',
-    label: 'VLAN',
-    pluralLabel: 'VLANs',
-    category: 'Network & Assets',
-    labels: ['VLAN'],
-    matchLabel: 'VLAN',
-    idPrefix: 'vlan',
-    sortField: 'vlanId',
-    columns: [
-      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'vlanId', label: 'VLAN ID' }
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'path', label: 'Path' }, { key: 'order', label: 'Order' }
     ],
     fields: [
       { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
       { key: 'name', label: 'Name', required: true },
-      { key: 'vlanId', label: 'VLAN ID', inputType: 'number', required: true },
+      { key: 'path', label: 'Path' },
+      { key: 'order', label: 'Order', inputType: 'number' },
       { key: 'description', label: 'Description', inputType: 'textarea' }
     ],
     relationships: [
-      { key: 'subnets', label: 'Subnets', relType: 'IN_VLAN', direction: 'in', targetLabels: ['Subnet'], cardinality: 'many' }
+      { key: 'application', label: 'Application', relType: 'HAS_MENU', direction: 'in', targetLabels: ['Application'], cardinality: 'one', required: true },
+      { key: 'realizesFunctions', label: 'Realizes (business functions)', relType: 'REALIZED_BY', direction: 'in', targetLabels: ['Function'], cardinality: 'many' },
+      { key: 'definedIn', label: 'Defined in (source files)', relType: 'DEFINED_IN', direction: 'out', targetLabels: ['SourceFile'], cardinality: 'many' }
     ]
   },
   {
-    key: 'subnet',
-    label: 'Subnet',
-    pluralLabel: 'Subnets',
-    category: 'Network & Assets',
-    labels: ['Subnet'],
-    matchLabel: 'Subnet',
-    idPrefix: 'subnet',
-    sortField: 'cidr',
+    key: 'form',
+    label: 'Form',
+    pluralLabel: 'Forms',
+    category: 'Application Capabilities',
+    labels: ['Form'],
+    matchLabel: 'Form',
+    idPrefix: 'form',
+    sortField: 'name',
     columns: [
-      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'cidr', label: 'CIDR' }, { key: 'gateway', label: 'Gateway' }
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'module', label: 'Module' }
     ],
     fields: [
       { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
       { key: 'name', label: 'Name', required: true },
-      { key: 'cidr', label: 'CIDR', required: true },
-      { key: 'gateway', label: 'Gateway' },
+      { key: 'module', label: 'Module' },
       { key: 'description', label: 'Description', inputType: 'textarea' }
     ],
     relationships: [
-      { key: 'inVlan', label: 'VLAN', relType: 'IN_VLAN', direction: 'out', targetLabels: ['VLAN'], cardinality: 'one' }
+      { key: 'application', label: 'Application', relType: 'HAS_FORM', direction: 'in', targetLabels: ['Application'], cardinality: 'one', required: true },
+      { key: 'realizesFunctions', label: 'Realizes (business functions)', relType: 'REALIZED_BY', direction: 'in', targetLabels: ['Function'], cardinality: 'many' },
+      { key: 'definedIn', label: 'Defined in (source files)', relType: 'DEFINED_IN', direction: 'out', targetLabels: ['SourceFile'], cardinality: 'many' }
+    ]
+  },
+  {
+    key: 'report',
+    label: 'Report',
+    pluralLabel: 'Reports',
+    category: 'Application Capabilities',
+    labels: ['Report'],
+    matchLabel: 'Report',
+    idPrefix: 'report',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'format', label: 'Format' }, { key: 'schedule', label: 'Schedule' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' },
+      { key: 'format', label: 'Format', options: ['pdf', 'excel', 'csv', 'html'] },
+      { key: 'schedule', label: 'Schedule' }
+    ],
+    relationships: [
+      { key: 'application', label: 'Application', relType: 'HAS_REPORT', direction: 'in', targetLabels: ['Application'], cardinality: 'one', required: true },
+      { key: 'realizesFunctions', label: 'Realizes (business functions)', relType: 'REALIZED_BY', direction: 'in', targetLabels: ['Function'], cardinality: 'many' },
+      { key: 'definedIn', label: 'Defined in (source files)', relType: 'DEFINED_IN', direction: 'out', targetLabels: ['SourceFile'], cardinality: 'many' }
+    ]
+  },
+  {
+    key: 'export',
+    label: 'Export',
+    pluralLabel: 'Exports',
+    category: 'Application Capabilities',
+    labels: ['Export'],
+    matchLabel: 'Export',
+    idPrefix: 'export',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'format', label: 'Format' }, { key: 'destination', label: 'Destination' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' },
+      { key: 'format', label: 'Format', options: ['csv', 'json', 'xml', 'xlsx'] },
+      { key: 'destination', label: 'Destination' }
+    ],
+    relationships: [
+      { key: 'application', label: 'Application', relType: 'HAS_EXPORT', direction: 'in', targetLabels: ['Application'], cardinality: 'one', required: true },
+      { key: 'realizesFunctions', label: 'Realizes (business functions)', relType: 'REALIZED_BY', direction: 'in', targetLabels: ['Function'], cardinality: 'many' },
+      { key: 'definedIn', label: 'Defined in (source files)', relType: 'DEFINED_IN', direction: 'out', targetLabels: ['SourceFile'], cardinality: 'many' }
+    ]
+  },
+  {
+    key: 'algorithm',
+    label: 'Algorithm',
+    pluralLabel: 'Algorithms',
+    category: 'Application Capabilities',
+    labels: ['Algorithm'],
+    matchLabel: 'Algorithm',
+    idPrefix: 'algo',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'complexity', label: 'Complexity' },
+      { key: 'generatedBy', label: 'Generated by' }, { key: 'confidence', label: 'Confidence' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' },
+      { key: 'complexity', label: 'Complexity', options: ['low', 'medium', 'high'] },
+      { key: 'generatedBy', label: 'Generated by', options: ['manual', 'ai-generated'] },
+      { key: 'confidence', label: 'Confidence (0-1, if AI-generated)', inputType: 'number' },
+      { key: 'extractedAt', label: 'Extracted at', inputType: 'datetime' }
+    ],
+    relationships: [
+      { key: 'application', label: 'Application', relType: 'HAS_ALGORITHM', direction: 'in', targetLabels: ['Application'], cardinality: 'one', required: true },
+      { key: 'realizesFunctions', label: 'Realizes (business functions)', relType: 'REALIZED_BY', direction: 'in', targetLabels: ['Function'], cardinality: 'many' },
+      { key: 'definedIn', label: 'Defined in (source files)', relType: 'DEFINED_IN', direction: 'out', targetLabels: ['SourceFile'], cardinality: 'many' }
+    ]
+  },
+  {
+    key: 'endpoint',
+    label: 'Web Service Endpoint',
+    pluralLabel: 'Web Service Endpoints',
+    category: 'Application Capabilities',
+    labels: ['Endpoint'],
+    matchLabel: 'Endpoint',
+    idPrefix: 'ep',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'method', label: 'Method' }, { key: 'path', label: 'Path' }, { key: 'protocol', label: 'Protocol' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' },
+      { key: 'method', label: 'Method', options: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+      { key: 'path', label: 'Path' },
+      { key: 'protocol', label: 'Protocol', options: ['REST', 'SOAP', 'GraphQL', 'gRPC'] }
+    ],
+    relationships: [
+      { key: 'application', label: 'Application', relType: 'HAS_ENDPOINT', direction: 'in', targetLabels: ['Application'], cardinality: 'one', required: true },
+      { key: 'realizesFunctions', label: 'Realizes (business functions)', relType: 'REALIZED_BY', direction: 'in', targetLabels: ['Function'], cardinality: 'many' },
+      { key: 'definedIn', label: 'Defined in (source files)', relType: 'DEFINED_IN', direction: 'out', targetLabels: ['SourceFile'], cardinality: 'many' }
+    ]
+  },
+  {
+    key: 'masterdata',
+    label: 'Master Data',
+    pluralLabel: 'Master Data',
+    category: 'Application Capabilities',
+    labels: ['MasterData'],
+    matchLabel: 'MasterData',
+    idPrefix: 'md',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'code', label: 'Code' }, { key: 'status', label: 'Status' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'code', label: 'Code' },
+      { key: 'description', label: 'Description', inputType: 'textarea' },
+      { key: 'status', label: 'Status', options: ['active', 'inactive'] },
+      { key: 'sortOrder', label: 'Sort order', inputType: 'number' }
+    ],
+    relationships: [
+      { key: 'ofType', label: 'Master data type', relType: 'OF_TYPE', direction: 'out', targetLabels: ['MasterDataType'], cardinality: 'one', required: true }
+    ]
+  },
+  {
+    key: 'settingfile',
+    label: 'Setting File',
+    pluralLabel: 'Setting Files',
+    category: 'Application Capabilities',
+    labels: ['SettingFile'],
+    matchLabel: 'SettingFile',
+    idPrefix: 'cfg',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'path', label: 'Path' }, { key: 'format', label: 'Format' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'path', label: 'Path' },
+      { key: 'format', label: 'Format', options: ['yaml', 'json', 'xml', 'ini', 'properties', 'env'] },
+      { key: 'description', label: 'Description', inputType: 'textarea' }
+    ],
+    relationships: [
+      { key: 'application', label: 'Application', relType: 'HAS_SETTING_FILE', direction: 'in', targetLabels: ['Application'], cardinality: 'one', required: true },
+      { key: 'realizesFunctions', label: 'Realizes (business functions)', relType: 'REALIZED_BY', direction: 'in', targetLabels: ['Function'], cardinality: 'many' },
+      { key: 'definedIn', label: 'Defined in (source files)', relType: 'DEFINED_IN', direction: 'out', targetLabels: ['SourceFile'], cardinality: 'many' }
     ]
   },
 
@@ -472,6 +740,95 @@ export const NODE_TYPES = [
       { key: 'resolutionTimeHours', label: 'Resolution time (h)', inputType: 'number' }
     ],
     relationships: []
+  },
+  {
+    key: 'businessdomain',
+    label: 'Business Domain',
+    pluralLabel: 'Business Domains',
+    category: 'IT Master Data',
+    labels: ['BusinessDomain'],
+    matchLabel: 'BusinessDomain',
+    idPrefix: 'bizdom',
+    sortField: 'name',
+    columns: [{ key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'description', label: 'Description' }],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' }
+    ],
+    relationships: [
+      { key: 'applications', label: 'Applications', relType: 'IN_BUSINESS_DOMAIN', direction: 'in', targetLabels: ['Application'], cardinality: 'many' }
+    ]
+  },
+  {
+    key: 'masterdatatype',
+    label: 'Master Data Type',
+    pluralLabel: 'Master Data Types',
+    category: 'IT Master Data',
+    labels: ['MasterDataType'],
+    matchLabel: 'MasterDataType',
+    idPrefix: 'mdt',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'code', label: 'Code' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'code', label: 'Code', required: true },
+      { key: 'description', label: 'Description', inputType: 'textarea' }
+    ],
+    relationships: [
+      { key: 'values', label: 'Values', relType: 'OF_TYPE', direction: 'in', targetLabels: ['MasterData'], cardinality: 'many' }
+    ]
+  },
+  {
+    key: 'repository',
+    label: 'Repository',
+    pluralLabel: 'Repositories',
+    category: 'IT Master Data',
+    labels: ['Repository'],
+    matchLabel: 'Repository',
+    idPrefix: 'repo',
+    sortField: 'name',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'vcsType', label: 'VCS' }, { key: 'url', label: 'URL' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'name', label: 'Name', required: true },
+      { key: 'url', label: 'URL' },
+      { key: 'vcsType', label: 'VCS type', options: ['git', 'svn', 'mercurial'] },
+      { key: 'defaultBranch', label: 'Default branch' },
+      { key: 'description', label: 'Description', inputType: 'textarea' }
+    ],
+    relationships: [
+      { key: 'applications', label: 'Applications', relType: 'SOURCE_REPOSITORY', direction: 'in', targetLabels: ['Application'], cardinality: 'many' },
+      { key: 'files', label: 'Source files', relType: 'CONTAINS_FILE', direction: 'out', targetLabels: ['SourceFile'], cardinality: 'many' }
+    ]
+  },
+  {
+    key: 'sourcefile',
+    label: 'Source File',
+    pluralLabel: 'Source Files',
+    category: 'IT Master Data',
+    labels: ['SourceFile'],
+    matchLabel: 'SourceFile',
+    idPrefix: 'src',
+    sortField: 'path',
+    columns: [
+      { key: 'id', label: 'ID' }, { key: 'path', label: 'Path' }, { key: 'language', label: 'Language' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', required: true, readOnlyOnEdit: true },
+      { key: 'path', label: 'Path', required: true },
+      { key: 'language', label: 'Language' },
+      { key: 'description', label: 'Description', inputType: 'textarea' }
+    ],
+    relationships: [
+      { key: 'repository', label: 'Repository', relType: 'CONTAINS_FILE', direction: 'in', targetLabels: ['Repository'], cardinality: 'one', required: true },
+      { key: 'referencedBy', label: 'Referenced by (functions/menus/forms/reports/exports/endpoints/settings/algorithms)', relType: 'DEFINED_IN', direction: 'in', targetLabels: null, cardinality: 'many' }
+    ]
   },
 
   // ------------------------------------------------------------------

@@ -3,6 +3,7 @@ import { NODE_TYPES, NODE_TYPE_CATEGORIES } from '../lib/nodeTypes.js';
 import { useConnection } from '../lib/ConnectionContext.jsx';
 import { buildBackupZip, restoreBackupZip } from '../lib/backup.js';
 import { downloadBlob } from '../lib/csv.js';
+import ImportModeModal from '../components/ImportModeModal.jsx';
 
 function timestampForFilename() {
   return new Date().toISOString().replace(/[:.]/g, '-');
@@ -15,6 +16,7 @@ export default function BackupRestorePage() {
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState(null);
   const [restoreSummary, setRestoreSummary] = useState(null);
+  const [pendingRestoreFile, setPendingRestoreFile] = useState(null); // File awaiting a replace/ignore choice
   const fileInputRef = useRef(null);
 
   function toggleKey(key) {
@@ -55,16 +57,23 @@ export default function BackupRestorePage() {
     fileInputRef.current?.click();
   }
 
-  async function handleRestoreFile(e) {
+  function handleRestoreFile(e) {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-selecting the same file on a retry
     if (!file) return;
-
-    setRestoring(true);
     setError(null);
     setRestoreSummary(null);
+    setPendingRestoreFile(file);
+  }
+
+  async function runRestore(onExisting) {
+    const file = pendingRestoreFile;
+    setPendingRestoreFile(null);
+    if (!file) return;
+
+    setRestoring(true);
     try {
-      const results = await restoreBackupZip({ file, database });
+      const results = await restoreBackupZip({ file, database, onExisting });
       setRestoreSummary(results);
     } catch (err) {
       setError(err.message);
@@ -105,9 +114,9 @@ export default function BackupRestorePage() {
         "Get CSV template") plus a <code>relationships.csv</code> covering edges directly between the
         selected types, into a single ZIP. Restore reads a ZIP built the same way: it imports every
         recognized <code>&lt;type&gt;.csv</code> first, then <code>relationships.csv</code> last, so the
-        ids it references already exist. Like single-type CSV import, this is additive
-        (<code>CREATE</code>, not <code>MERGE</code>) - restoring into data it overlaps with reports
-        per-row failures for duplicate ids rather than overwriting anything.
+        ids it references already exist. Before importing, you'll be asked whether rows whose <code>id</code>
+        already exists should replace the existing node's properties or be left alone - new ids are
+        always created either way.
       </p>
 
       {error && <p className="form-error">{error}</p>}
@@ -137,6 +146,8 @@ export default function BackupRestorePage() {
             {restoreSummary.types.map((t) => (
               <li key={t.key}>
                 {t.label}: created {t.created} of {t.total}
+                {t.replaced > 0 && `, replaced ${t.replaced}`}
+                {t.ignored > 0 && `, ignored ${t.ignored}`}
                 {t.failed.length > 0 && ` (${t.failed.length} failed)`}
               </li>
             ))}
@@ -151,6 +162,12 @@ export default function BackupRestorePage() {
             )}
           </ul>
         </div>
+      )}
+      {pendingRestoreFile && (
+        <ImportModeModal
+          onChoose={runRestore}
+          onClose={() => setPendingRestoreFile(null)}
+        />
       )}
     </div>
   );

@@ -10,7 +10,7 @@ cmdb/
 ├── cypher/
 │   ├── 00_security_setup.cypher            optional: cmdb_readonly / cmdb_admin roles + demo users
 │   ├── 01_constraints_and_indexes.cypher   schema: uniqueness constraints, indexes, fulltext index
-│   ├── 02_sample_data.cypher               ~90 nodes / ~160 relationships of realistic sample data
+│   ├── 02_sample_data.cypher               ~125 nodes / ~205 relationships of realistic sample data
 │   └── 03_sample_queries.cypher            read/write query cookbook (also used as app presets)
 ├── app/                                    React + @neo4j-nvl/react + neo4j-driver
 └── ontology/                               create-context-graph ontology (optional, unrelated to the app - see ontology/README.md)
@@ -33,22 +33,36 @@ cmdb/
 | `:Incident`                  | Operational incident                       | id, title, severity (SEV1-4), status, createdAt, resolvedAt |
 | `:Ticket`                    | Work item (incident/change/request)        | id, title, type, status, priority, createdAt, dueDate |
 | `:ChangeRequest`             | Planned change (CAB-style workflow)        | id, title, status (draft/approved/scheduled/…), riskLevel, scheduledStart, scheduledEnd |
+| `:Subnet`                    | IP subnet, grouped under a VLAN            | id, name, cidr, gateway, description |
+| `:VLAN`                      | Layer-2 network segment                    | id, name, vlanId, description |
 | `:NetworkInterface`          | NIC on a server (data or management)       | id, name, type (data/management), speedMbps, mac |
 | `:IPAddress`                 | IP address bound to an interface           | id, address, version (v4/v6), type, allocation |
+| `:Alias`                     | DNS alias for a virtual server              | id, hostname, recordType (CNAME/A), ttl, description |
 | `:Vendor`                    | Hardware/support vendor                    | id, name, supportPhone, supportEmail, website |
 | `:Contract`                  | Maintenance/support contract               | id, contractNumber, type, startDate, endDate, cost, currency |
-| `:Environment`               | First-class prod/staging/dev entity        | id, name, description |
+| `:Environment`               | First-class production/pre-production/qualification/development/other entity | id, name, description |
 | `:SLA`                       | Service level agreement tier               | id, name, uptimeTargetPct, responseTimeMinutes, resolutionTimeHours |
+| `:BusinessDomain`            | First-class categorization for Application | id, name, description |
 | `:Data`                      | Data asset (database, cache, log store…)   | id, name, description, type, format, volumeGB |
 | `:DataCategory`              | Data classification taxonomy entry         | id, name, sensitivity (public/internal/confidential/restricted), regulatoryScope |
-| `:VLAN`                      | Layer-2 network segment                    | id, name, vlanId, description |
-| `:Subnet`                    | IP subnet, grouped under a VLAN            | id, name, cidr, gateway, description |
 | `:Approval`                  | One step in a change's approval chain      | id, step, status (pending/approved/rejected), comment, decidedAt |
 | `:CostCenter`                | Chargeback/showback cost center            | id, name, code |
 | `:Budget`                    | A cost center's budget for a fiscal year   | id, name, amount, currency, fiscalYear |
 | `:ApplicationVersion`        | Point-in-time version snapshot of an app   | id, version, validFrom, validTo, changelog |
 | `:DataFlow`                  | ETL/replication pipeline between data assets | id, name, description, type, schedule |
 | `:Probe`                     | Supervision/health check on a resource     | id, name, description, checkType (command/process/port), command, process, port, intervalSeconds, timeoutSeconds, alertCondition, alertThreshold, severity (SEV1-4), status (ok/warning/critical/unknown/disabled) |
+| `:Function`                  | Business function/capability of an app     | id, name, description, category |
+| `:Menu`                      | UI menu entry                              | id, name, path, description, order |
+| `:Form`                      | UI form                                    | id, name, description, module |
+| `:Report`                    | Report                                     | id, name, description, format (pdf/excel/csv/html), schedule |
+| `:Export`                    | Data export                                | id, name, description, format (csv/json/xml/xlsx), destination |
+| `:Algorithm`                 | Business logic/algorithm                   | id, name, description, complexity (low/medium/high), generatedBy (manual/ai-generated), confidence, extractedAt |
+| `:Endpoint`                  | Web service/API endpoint                   | id, name, description, method (GET/POST/PUT/DELETE/PATCH), path, protocol (REST/SOAP/GraphQL/gRPC) |
+| `:MasterData`                | A value within a master data type's list   | id, name, code, description, status (active/inactive), sortOrder |
+| `:SettingFile`               | Configuration/settings file                | id, name, path, description, format (yaml/json/xml/ini/properties/env) |
+| `:Repository`                | Source code repository                     | id, name, url, vcsType (git/svn/mercurial), defaultBranch, description |
+| `:SourceFile`                | A file inside a repository                 | id, path, language, description |
+| `:MasterDataType`            | Definition of a generic reference/code list | id, name, code, description |
 
 Every node carries a unique `id` string property (enforced by constraints) —
 this is what all sample Cypher `MERGE`s and the app's write operations key off.
@@ -83,6 +97,7 @@ queries (`MATCH (s:Server)`) work across both; same pattern for
 
 (:Server:Physical)   -[:HAS_INTERFACE]->(:NetworkInterface)
 (:NetworkInterface)  -[:HAS_IP]->       (:IPAddress)
+(:Alias)             -[:ALIAS_OF]->     (:Server:Virtual)  // DNS alias for a virtual server
 
 (:Server:Physical)   -[:SUPPLIED_BY]->  (:Vendor)
 (:Server:Physical)   -[:COVERED_BY]->   (:Contract)
@@ -90,6 +105,7 @@ queries (`MATCH (s:Server)`) work across both; same pattern for
 
 (:Server | :Application | :Data) -[:IN_ENVIRONMENT]-> (:Environment)
 (:Application)       -[:HAS_SLA]->      (:SLA)
+(:Application)       -[:IN_BUSINESS_DOMAIN]-> (:BusinessDomain) // node form of Application.businessService
 
 (:Application)       -[:OWNS_DATA]->    (:Data)   // system of record
 (:Application)       -[:CONSUMES_DATA]->(:Data)   // reads/depends on it (data lineage)
@@ -114,6 +130,22 @@ queries (`MATCH (s:Server)`) work across both; same pattern for
 (:Application)       -[:IMPLEMENTS]->   (:DataFlow)   // which app runs/owns the pipeline
 
 (:Probe)             -[:MONITORS]->     (:Server:Virtual | :Container | :Application)
+
+(:Application)       -[:HAS_FUNCTION]->     (:Function)      // business capability
+(:Application)       -[:HAS_MENU]->         (:Menu)          // software/dev-level artifacts
+(:Application)       -[:HAS_FORM]->         (:Form)
+(:Application)       -[:HAS_REPORT]->       (:Report)
+(:Application)       -[:HAS_EXPORT]->       (:Export)
+(:Application)       -[:HAS_ENDPOINT]->     (:Endpoint)
+(:Application)       -[:HAS_SETTING_FILE]-> (:SettingFile)
+(:Application)       -[:HAS_ALGORITHM]->    (:Algorithm)
+(:Application)       -[:SOURCE_REPOSITORY]->(:Repository)    // an app can span more than one repo
+(:Repository)        -[:CONTAINS_FILE]->    (:SourceFile)
+(:Function)          -[:REALIZED_BY]->      (:Menu | :Form | :Report | :Export | :Endpoint | :SettingFile | :Algorithm)
+(:Function | :Menu | :Form | :Report | :Export | :Endpoint | :SettingFile | :Algorithm)
+                      -[:DEFINED_IN]->      (:SourceFile)     // traceability to source, not just for :Algorithm
+
+(:MasterData)        -[:OF_TYPE]->          (:MasterDataType) // generic reference/code list value -> its list definition
 ```
 
 This lets you answer typical CMDB questions directly with graph traversals:
@@ -122,7 +154,7 @@ traversal), "blast radius of an incident" (`IMPACTS` + `DEPENDS_ON*`), "who
 owns this app" (`OWNS`), "what's open against this server" (`CONCERNS`),
 "which contracts are about to expire" (`COVERED_BY`), "what's approved to go
 live this week" (`ChangeRequest.status` + `APPROVED_BY`), "show me everything
-in staging" (`IN_ENVIRONMENT`), or "which applications touch regulated data"
+in pre-production" (`IN_ENVIRONMENT`), or "which applications touch regulated data"
 (`OWNS_DATA`/`CONSUMES_DATA` + `CLASSIFIED_AS` + `DataCategory.regulatoryScope`)
 as a relationship traversal instead of a property filter scattered across
 every label.
@@ -138,12 +170,50 @@ data lived as a property on `Application` there'd be nothing to traverse.
 Note on denormalization: `Server`/`Application`/`Data` nodes still carry a flat
 `environment` string property *and* now have an `IN_ENVIRONMENT` relationship
 to the matching `:Environment` node. That's intentional, not an oversight —
-the property is convenient for a quick `WHERE n.environment = 'prod'` filter,
-while the relationship lets `:Environment` carry its own metadata and support
-richer traversals (e.g. "everything in staging" without touching every label
-that happens to have an `environment` property). Same reasoning applies to
+the property is convenient for a quick `WHERE n.environment = 'production'`
+filter, while the relationship lets `:Environment` carry its own metadata and
+support richer traversals (e.g. "everything in pre-production" without
+touching every label that happens to have an `environment` property). Same
+reasoning applies to
 `Server:Physical.vendor`/`.model` (quick display) versus the `SUPPLIED_BY`
-relationship to `:Vendor` (queryable asset/contract graph).
+relationship to `:Vendor` (queryable asset/contract graph), and to
+`Application.businessService` (quick display string, e.g. "E-commerce")
+versus the `IN_BUSINESS_DOMAIN` relationship to a first-class
+`:BusinessDomain` node (queryable taxonomy - "every application in the
+Platform domain" as a traversal, and somewhere to hang domain-level
+metadata later without touching `:Application`).
+
+Application capabilities and the business/software/infrastructure
+"level" split: `:Function` represents a business capability an
+application provides ("order placement", "checkout"); `:Menu`, `:Form`,
+`:Report`, `:Export`, `:Algorithm`, `:Endpoint`, and `:SettingFile` are
+the software/dev-level artifacts that realize it (`REALIZED_BY`); the
+existing `:Server`/`:Container`/network labels remain the infrastructure
+level. There's no separate `level` enum property anywhere in this model —
+which of the three levels a node belongs to follows directly from its
+label, so filtering "by level" is a label filter (`MATCH (n:Function)`,
+`MATCH (n:Menu OR n:Form OR ...)`, `MATCH (n:Server OR n:Container)`),
+not a property lookup. `DEFINED_IN` traces any of those seven artifact
+types back to a `:SourceFile` inside a `:Repository`
+(`SOURCE_REPOSITORY`) — most useful for `:Algorithm`, whose
+`generatedBy`/`confidence`/`extractedAt` properties exist so a future
+AI step that parses source code to extract business logic has somewhere
+to record its provenance (`generatedBy: 'ai-generated'`, a confidence
+score, and a timestamp) instead of only supporting hand-entered
+algorithms; no such parser is implemented here, only the schema to hold
+its output.
+
+The app's sidebar category a node type sits in ("Application
+Capabilities" vs. "IT Master Data") is a menu-grouping choice in
+`app/src/lib/nodeTypes.js`, independent of its relationships: `:Repository`/
+`:SourceFile` sit under "IT Master Data" (reference/taxonomy data
+alongside `:DataCategory`/`:Environment`/`:SLA`/`:MasterDataType`) even
+though `DEFINED_IN`/`CONTAINS_FILE` tie them tightly to the "Application
+Capabilities" artifact types; `:MasterData` sits under "Application
+Capabilities" even though its only relationship (`OF_TYPE`) points at
+`:MasterDataType`, which stays under "IT Master Data". Moving a type
+between categories is purely cosmetic (which sidebar group its business
+screen appears in) and never changes the graph schema.
 
 ## 2. Load the schema and sample data
 
@@ -164,9 +234,11 @@ application dependencies, D incidents/tickets, E network/IPAM, F vendors
 & contracts, G change management, H environments/SLAs, I data &
 classification, K IPAM v2 (VLAN/Subnet), L multi-step change approvals,
 M cost centers/budgets, N application version history, O data flows,
-P supervision probes, and Q write operations. Run individual blocks (A1, B2,
-D3, G1, I3, …) as needed; the last section (`Q.` write operations) mutates
-the sample data so run those selectively.
+P supervision probes, R application capabilities & source traceability,
+S master data/reference lists, T business domains, and Q write
+operations. Run individual blocks (A1, B2, D3, G1, I3, …) as needed; the
+last section (`Q.` write operations) mutates the sample data so run
+those selectively.
 
 The data is idempotent (`MERGE` on `id`) except for section Q of the cookbook,
 which uses `CREATE` on purpose (it demonstrates ad hoc writes matching what
@@ -345,18 +417,25 @@ screen.
   it's ready for Import CSV. Available to every profile (it's just a
   header, no data).
 - **Import CSV** (operator, superuser, and admin): bulk-creates nodes from a
-  CSV file - one row per node, using `createNode` under the hood (same
-  number/date/datetime coercion as the Create/Edit form). Headers are
-  matched against the type's fields by either property key (the template's
-  headers) or display label (Export CSV's headers), case-insensitively, so
-  a template you filled in *or* a previously exported CSV both import
-  cleanly; unrecognized columns are ignored. Rows missing a required field
-  fail validation before any write; everything else is attempted, and a
-  summary ("created N of M, K failed: …") lists per-row failures (e.g. a
-  duplicate `id`, which Neo4j's uniqueness constraint rejects). Scoped to
-  properties only - relationships aren't part of the CSV format, since
-  resolving a relationship target from a spreadsheet cell isn't a well-defined
-  operation the way autocomplete-picking one in the form is; use Edit
+  CSV file - one row per node (same number/date/datetime coercion as the
+  Create/Edit form). Before anything is written, a prompt asks how to
+  handle rows whose `id` already matches a node in the database: **Replace
+  existing** overwrites that node's properties with the CSV row's (via
+  `replaceNodeByBusinessId`, matched on the business `id` property, not
+  `elementId`), **Ignore existing** leaves it untouched and skips the row,
+  and **Cancel** aborts the import entirely; rows with a new `id` are
+  always created (`createNode`) regardless of which choice is made. Headers
+  are matched against the type's fields by either property key (the
+  template's headers) or display label (Export CSV's headers),
+  case-insensitively, so a template you filled in *or* a previously
+  exported CSV both import cleanly; unrecognized columns are ignored. Rows
+  missing a required field fail validation before any write; everything
+  else is attempted, and a summary ("created N of M, replaced N, ignored N,
+  K failed: …") lists per-row failures (e.g. a required field left blank).
+  Scoped to properties only - relationships aren't part of the CSV format,
+  since resolving a relationship target from a spreadsheet cell isn't a
+  well-defined operation the way autocomplete-picking one in the form is;
+  use Edit
   afterwards for those.
 - **Create** (operator, superuser, and admin — i.e. every profile above
   read-only) / **Edit** (every profile, including read-only — see below): a
@@ -422,20 +501,25 @@ instead of menu display:
   `relationships.csv` covering edges that run directly between two of the
   selected types (`relType,fromId,toId`), into a single ZIP built
   client-side with `jszip`.
-- **Restore ZIP**: reads a ZIP built the same way — imports every
-  recognized `<type>.csv` first (node creation across types has no ordering
-  dependency), then `relationships.csv` last, so the ids it references
-  already exist. Unrecognized entries (a foreign zip, or a type key this
-  app version doesn't know) are ignored rather than failing the whole
-  restore. Per-type and relationship results (created vs. failed counts)
-  are shown after the restore finishes.
+- **Restore ZIP**: reads a ZIP built the same way — before anything is
+  written, the same Replace existing/Ignore existing/Cancel prompt used by
+  single-type Import CSV asks how to handle rows whose `id` already exists;
+  the choice applies uniformly across every type in the archive for that
+  restore. It then imports every recognized `<type>.csv` first (node
+  creation across types has no ordering dependency), then
+  `relationships.csv` last, so the ids it references already exist.
+  Unrecognized entries (a foreign zip, or a type key this app version
+  doesn't know) are ignored rather than failing the whole restore. Per-type
+  and relationship results (created/replaced/ignored vs. failed counts) are
+  shown after the restore finishes.
 
-Like single-type CSV import, this is additive (`CREATE`, not `MERGE`) and
-scoped to node properties + inter-type relationships only — it doesn't
-attempt to reconcile or diff against what's already in the database, so
-restoring into overlapping data reports per-row failures (duplicate `id`s,
-rejected by the uniqueness constraints) rather than overwriting anything.
-`app/src/lib/backup.js` holds the export/restore orchestration;
+Like single-type CSV import, this is scoped to node properties +
+inter-type relationships only — it doesn't attempt to reconcile or diff
+against what's already in the database beyond the Replace/Ignore choice
+made up front; relationships are always additive (`CREATE`, never
+deduplicated), so restoring `relationships.csv` into a database that
+already has some of those edges creates duplicates rather than merging
+them. `app/src/lib/backup.js` holds the export/restore orchestration;
 `app/src/lib/csvImport.js` holds the row-level CSV → node/relationship
 logic shared with the single-type Import CSV button.
 
@@ -469,11 +553,37 @@ A second batch, also now implemented:
   own the data, plus `(:Application)-[:IMPLEMENTS]->(:DataFlow)` to record
   which application actually runs a given pipeline — cookbook section O.
 
-No open "further ideas" are currently listed here — the two batches above
-cover every extension previously suggested. Anything genuinely new (e.g.
-`:Approval` gaining explicit multi-approver quorum rules, or `:DataFlow`
-edges between data assets independent of `:Application`) can be added the
-same way: schema in `01_constraints_and_indexes.cypher`, sample data +
-relationships in `02_sample_data.cypher`, cookbook queries in
-`03_sample_queries.cypher`, and a registry entry in
+A third batch, also now implemented:
+- Application capability decomposition: `:Function` (business capability)
+  `REALIZED_BY` seven software/dev-level artifact types (`:Menu`,
+  `:Form`, `:Report`, `:Export`, `:Algorithm`, `:Endpoint`,
+  `:SettingFile`), each attached to its owning `:Application` via
+  `HAS_FUNCTION`/`HAS_MENU`/etc., plus `:Repository`/`:SourceFile` nodes
+  (`SOURCE_REPOSITORY`, `CONTAINS_FILE`, `DEFINED_IN`) for source
+  traceability — see the "Application capabilities" note in section 1
+  and cookbook section R. `:Repository`/`:SourceFile` sit in the "IT
+  Master Data" sidebar category rather than "Application Capabilities"
+  (a menu-grouping choice, not a schema change — see the note above).
+- `:MasterDataType`/`:MasterData` (`OF_TYPE`), a generic reference/
+  code-list pair for ad hoc taxonomies (countries, priority levels, …)
+  that don't warrant their own dedicated node label — `:MasterDataType`
+  sits in "IT Master Data", `:MasterData` in "Application Capabilities" —
+  cookbook section S.
+- `:BusinessDomain` in "IT Master Data", a first-class categorization for
+  `:Application` (`IN_BUSINESS_DOMAIN`) alongside the existing flat
+  `businessService` string property — same denormalization pattern as
+  `:Environment`/`environment` above — cookbook section T.
+- `:Alias` in "Network & Assets", a DNS alias for a `:Server:Virtual`
+  (`ALIAS_OF`) — cookbook section E (E4/E5). The "Network & Assets"
+  sidebar category as a whole was also moved earlier, ahead of
+  "Applications & Data" (a `nodeTypes.js` ordering change only, see the
+  "sidebar category is a menu-grouping choice" note above).
+
+No open "further ideas" are currently listed here — the three batches
+above cover every extension previously suggested. Anything genuinely new
+(e.g. `:Approval` gaining explicit multi-approver quorum rules, or
+`:DataFlow` edges between data assets independent of `:Application`) can
+be added the same way: schema in `01_constraints_and_indexes.cypher`,
+sample data + relationships in `02_sample_data.cypher`, cookbook queries
+in `03_sample_queries.cypher`, and a registry entry in
 `app/src/lib/nodeTypes.js`.

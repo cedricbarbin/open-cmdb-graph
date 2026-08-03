@@ -8,6 +8,7 @@ import { toCsv, toCsvTemplate, downloadCsv } from '../lib/csv.js';
 import { importNodesFromCsvText } from '../lib/csvImport.js';
 import EntityFormModal from '../components/EntityFormModal.jsx';
 import DetailGraphModal from '../components/DetailGraphModal.jsx';
+import ImportModeModal from '../components/ImportModeModal.jsx';
 
 const MAX_SHOWN_IMPORT_ERRORS = 10;
 
@@ -29,7 +30,8 @@ export default function EntityListScreen() {
   const [formModal, setFormModal] = useState(null); // { mode, initialNode } | null
   const [detailModal, setDetailModal] = useState(null); // { elementId, caption } | null
   const [importing, setImporting] = useState(false);
-  const [importSummary, setImportSummary] = useState(null); // { total, created, failed: [{row,id,message}] } | null
+  const [importSummary, setImportSummary] = useState(null); // { total, created, replaced, ignored, failed: [{row,id,message}] } | null
+  const [pendingImportText, setPendingImportText] = useState(null); // CSV text awaiting a replace/ignore choice
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -84,13 +86,19 @@ export default function EntityListScreen() {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-selecting the same file on a retry
     if (!file || !typeDef) return;
-
-    setImporting(true);
     setImportSummary(null);
     setError(null);
+    setPendingImportText(await file.text());
+  }
+
+  async function runImport(onExisting) {
+    const text = pendingImportText;
+    setPendingImportText(null);
+    if (!text) return;
+
+    setImporting(true);
     try {
-      const text = await file.text();
-      const summary = await importNodesFromCsvText(typeDef, text, database);
+      const summary = await importNodesFromCsvText(typeDef, text, database, onExisting);
       setImportSummary(summary);
       await load();
     } catch (err) {
@@ -162,7 +170,9 @@ export default function EntityListScreen() {
 
       {importSummary && (
         <p className={importSummary.failed.length > 0 ? 'form-error' : 'readonly-note'}>
-          Imported {importSummary.created} of {importSummary.total} row{importSummary.total === 1 ? '' : 's'}.
+          Inserted {importSummary.created} of {importSummary.total} row{importSummary.total === 1 ? '' : 's'}
+          {importSummary.replaced > 0 && `, replaced ${importSummary.replaced}`}
+          {importSummary.ignored > 0 && `, ignored ${importSummary.ignored}`}.
           {importSummary.failed.length > 0 && (
             <>
               {' '}{importSummary.failed.length} failed:{' '}
@@ -240,6 +250,12 @@ export default function EntityListScreen() {
           caption={detailModal.caption}
           database={database}
           onClose={() => setDetailModal(null)}
+        />
+      )}
+      {pendingImportText && (
+        <ImportModeModal
+          onChoose={runImport}
+          onClose={() => setPendingImportText(null)}
         />
       )}
     </div>

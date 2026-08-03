@@ -40,6 +40,23 @@ CREATE CONSTRAINT budget_id_unique        IF NOT EXISTS FOR (n:Budget)      REQU
 CREATE CONSTRAINT appversion_id_unique    IF NOT EXISTS FOR (n:ApplicationVersion) REQUIRE n.id IS UNIQUE;
 CREATE CONSTRAINT dataflow_id_unique      IF NOT EXISTS FOR (n:DataFlow)    REQUIRE n.id IS UNIQUE;
 CREATE CONSTRAINT probe_id_unique         IF NOT EXISTS FOR (n:Probe)       REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT function_id_unique      IF NOT EXISTS FOR (n:Function)    REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT menu_id_unique          IF NOT EXISTS FOR (n:Menu)        REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT form_id_unique          IF NOT EXISTS FOR (n:Form)        REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT report_id_unique        IF NOT EXISTS FOR (n:Report)      REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT export_id_unique        IF NOT EXISTS FOR (n:Export)      REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT endpoint_id_unique      IF NOT EXISTS FOR (n:Endpoint)    REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT settingfile_id_unique   IF NOT EXISTS FOR (n:SettingFile) REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT algorithm_id_unique     IF NOT EXISTS FOR (n:Algorithm)   REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT repository_id_unique    IF NOT EXISTS FOR (n:Repository)  REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT sourcefile_id_unique    IF NOT EXISTS FOR (n:SourceFile)  REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT masterdatatype_id_unique   IF NOT EXISTS FOR (n:MasterDataType) REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT masterdatatype_code_unique IF NOT EXISTS FOR (n:MasterDataType) REQUIRE n.code IS UNIQUE;
+CREATE CONSTRAINT masterdata_id_unique       IF NOT EXISTS FOR (n:MasterData)     REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT businessdomain_id_unique   IF NOT EXISTS FOR (n:BusinessDomain) REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT businessdomain_name_unique IF NOT EXISTS FOR (n:BusinessDomain) REQUIRE n.name IS UNIQUE;
+CREATE CONSTRAINT alias_id_unique            IF NOT EXISTS FOR (n:Alias)         REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT alias_hostname_unique      IF NOT EXISTS FOR (n:Alias)         REQUIRE n.hostname IS UNIQUE;
 
 // Person email should be unique too
 CREATE CONSTRAINT person_email_unique     IF NOT EXISTS FOR (n:Person)      REQUIRE n.email IS UNIQUE;
@@ -78,6 +95,24 @@ CREATE INDEX appversion_validfrom_idx IF NOT EXISTS FOR (n:ApplicationVersion) O
 CREATE INDEX dataflow_type_idx        IF NOT EXISTS FOR (n:DataFlow)    ON (n.type);
 CREATE INDEX probe_status_idx         IF NOT EXISTS FOR (n:Probe)       ON (n.status);
 CREATE INDEX probe_checktype_idx      IF NOT EXISTS FOR (n:Probe)       ON (n.checkType);
+CREATE INDEX function_name_idx        IF NOT EXISTS FOR (n:Function)    ON (n.name);
+CREATE INDEX menu_name_idx            IF NOT EXISTS FOR (n:Menu)        ON (n.name);
+CREATE INDEX form_name_idx            IF NOT EXISTS FOR (n:Form)        ON (n.name);
+CREATE INDEX report_name_idx          IF NOT EXISTS FOR (n:Report)      ON (n.name);
+CREATE INDEX export_name_idx          IF NOT EXISTS FOR (n:Export)      ON (n.name);
+CREATE INDEX endpoint_name_idx        IF NOT EXISTS FOR (n:Endpoint)    ON (n.name);
+CREATE INDEX endpoint_method_idx      IF NOT EXISTS FOR (n:Endpoint)    ON (n.method);
+CREATE INDEX settingfile_name_idx     IF NOT EXISTS FOR (n:SettingFile) ON (n.name);
+CREATE INDEX algorithm_name_idx       IF NOT EXISTS FOR (n:Algorithm)   ON (n.name);
+CREATE INDEX algorithm_generatedby_idx IF NOT EXISTS FOR (n:Algorithm)  ON (n.generatedBy);
+CREATE INDEX repository_name_idx      IF NOT EXISTS FOR (n:Repository)  ON (n.name);
+CREATE INDEX sourcefile_path_idx      IF NOT EXISTS FOR (n:SourceFile)  ON (n.path);
+CREATE INDEX sourcefile_language_idx  IF NOT EXISTS FOR (n:SourceFile)  ON (n.language);
+CREATE INDEX masterdatatype_code_idx  IF NOT EXISTS FOR (n:MasterDataType) ON (n.code);
+CREATE INDEX masterdata_code_idx      IF NOT EXISTS FOR (n:MasterData)     ON (n.code);
+CREATE INDEX masterdata_status_idx    IF NOT EXISTS FOR (n:MasterData)     ON (n.status);
+CREATE INDEX alias_hostname_idx       IF NOT EXISTS FOR (n:Alias)          ON (n.hostname);
+CREATE INDEX alias_recordtype_idx     IF NOT EXISTS FOR (n:Alias)          ON (n.recordType);
 
 // Full text index used by the app's search box AND by the business screens'
 // relationship-picker autocomplete (see app/src/lib/nodeTypes.js). Dropped
@@ -86,5 +121,5 @@ CREATE INDEX probe_checktype_idx      IF NOT EXISTS FOR (n:Probe)       ON (n.ch
 // fulltext indexes) - safe to do any time, it just gets rebuilt.
 DROP INDEX cmdb_fulltext IF EXISTS;
 CREATE FULLTEXT INDEX cmdb_fulltext
-FOR (n:Location|Server|Container|Application|Team|Person|Incident|Ticket|ChangeRequest|Vendor|Contract|Environment|SLA|NetworkInterface|IPAddress|Data|DataCategory|VLAN|Subnet|Approval|CostCenter|Budget|ApplicationVersion|DataFlow|Probe)
-ON EACH [n.name, n.hostname, n.title, n.id, n.address, n.contractNumber, n.cidr, n.code, n.version];
+FOR (n:Location|Server|Container|Application|Team|Person|Incident|Ticket|ChangeRequest|Vendor|Contract|Environment|SLA|NetworkInterface|IPAddress|Data|DataCategory|VLAN|Subnet|Approval|CostCenter|Budget|ApplicationVersion|DataFlow|Probe|Function|Menu|Form|Report|Export|Endpoint|SettingFile|Algorithm|Repository|SourceFile|MasterDataType|MasterData|BusinessDomain|Alias)
+ON EACH [n.name, n.hostname, n.title, n.id, n.address, n.contractNumber, n.cidr, n.code, n.version, n.path, n.url];

@@ -25,23 +25,23 @@ SET l += row;
 // 2. SERVERS (Physical hosts + Virtual machines)
 // ---------------------------------------------------------------------
 UNWIND [
-  {id:'srv-phy-001', hostname:'hv-par1-01', ipAddress:'10.10.1.11', os:'VMware ESXi',  osVersion:'8.0', status:'active', environment:'prod', cpuCores:64,  ramGB:512,  diskGB:8000,  vendor:'Dell',  model:'PowerEdge R740', serialNumber:'DL740-88231', rackPosition:'A12-U10', purchaseDate:'2023-02-15', warrantyEnd:'2027-02-15'},
-  {id:'srv-phy-002', hostname:'hv-par1-02', ipAddress:'10.10.1.12', os:'VMware ESXi',  osVersion:'8.0', status:'active', environment:'prod', cpuCores:64,  ramGB:512,  diskGB:8000,  vendor:'Dell',  model:'PowerEdge R740', serialNumber:'DL740-88232', rackPosition:'A12-U14', purchaseDate:'2023-02-15', warrantyEnd:'2027-02-15'},
-  {id:'srv-phy-003', hostname:'hv-lyon1-01',ipAddress:'10.20.1.11', os:'VMware ESXi',  osVersion:'7.0', status:'active', environment:'prod', cpuCores:48,  ramGB:384,  diskGB:12000, vendor:'HPE',   model:'ProLiant DL380', serialNumber:'HPE380-55120', rackPosition:'B03-U04', purchaseDate:'2021-06-01', warrantyEnd:'2026-06-01'},
-  {id:'srv-phy-004', hostname:'bkp-lyon1-01',ipAddress:'10.20.1.20',os:'Debian',       osVersion:'12',  status:'active', environment:'prod', cpuCores:16,  ramGB:64,   diskGB:40000, vendor:'HPE',   model:'ProLiant DL380', serialNumber:'HPE380-55121', rackPosition:'B03-U08', purchaseDate:'2021-06-01', warrantyEnd:'2026-06-01'}
+  {id:'srv-phy-001', hostname:'hv-par1-01', ipAddress:'10.10.1.11', os:'VMware ESXi',  osVersion:'8.0', status:'active', environment:'production', cpuCores:64,  ramGB:512,  diskGB:8000,  vendor:'Dell',  model:'PowerEdge R740', serialNumber:'DL740-88231', rackPosition:'A12-U10', purchaseDate:'2023-02-15', warrantyEnd:'2027-02-15'},
+  {id:'srv-phy-002', hostname:'hv-par1-02', ipAddress:'10.10.1.12', os:'VMware ESXi',  osVersion:'8.0', status:'active', environment:'production', cpuCores:64,  ramGB:512,  diskGB:8000,  vendor:'Dell',  model:'PowerEdge R740', serialNumber:'DL740-88232', rackPosition:'A12-U14', purchaseDate:'2023-02-15', warrantyEnd:'2027-02-15'},
+  {id:'srv-phy-003', hostname:'hv-lyon1-01',ipAddress:'10.20.1.11', os:'VMware ESXi',  osVersion:'7.0', status:'active', environment:'production', cpuCores:48,  ramGB:384,  diskGB:12000, vendor:'HPE',   model:'ProLiant DL380', serialNumber:'HPE380-55120', rackPosition:'B03-U04', purchaseDate:'2021-06-01', warrantyEnd:'2026-06-01'},
+  {id:'srv-phy-004', hostname:'bkp-lyon1-01',ipAddress:'10.20.1.20',os:'Debian',       osVersion:'12',  status:'active', environment:'production', cpuCores:16,  ramGB:64,   diskGB:40000, vendor:'HPE',   model:'ProLiant DL380', serialNumber:'HPE380-55121', rackPosition:'B03-U08', purchaseDate:'2021-06-01', warrantyEnd:'2026-06-01'}
 ] AS row
 MERGE (s:Server:Physical {id: row.id})
 SET s += row;
 
 UNWIND [
-  {id:'vm-web-01',  hostname:'web-01.prod.local',  ipAddress:'10.10.2.11', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'prod', cpuCores:4, ramGB:16, diskGB:100, hypervisor:'ESXi', vCpu:4},
-  {id:'vm-web-02',  hostname:'web-02.prod.local',  ipAddress:'10.10.2.12', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'prod', cpuCores:4, ramGB:16, diskGB:100, hypervisor:'ESXi', vCpu:4},
-  {id:'vm-app-01',  hostname:'app-01.prod.local',  ipAddress:'10.10.2.21', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'prod', cpuCores:8, ramGB:32, diskGB:200, hypervisor:'ESXi', vCpu:8},
-  {id:'vm-app-02',  hostname:'app-02.prod.local',  ipAddress:'10.10.2.22', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'prod', cpuCores:8, ramGB:32, diskGB:200, hypervisor:'ESXi', vCpu:8},
-  {id:'vm-db-01',   hostname:'db-01.prod.local',   ipAddress:'10.20.2.11', os:'Rocky Linux', osVersion:'9', status:'active', environment:'prod', cpuCores:16, ramGB:128, diskGB:2000, hypervisor:'ESXi', vCpu:16},
-  {id:'vm-cloud-api-01', hostname:'ip-10-0-1-101.eu-west-1.compute.internal', ipAddress:'10.0.1.101', os:'Amazon Linux', osVersion:'2023', status:'active', environment:'prod', cpuCores:4, ramGB:16, diskGB:80, hypervisor:'AWS Nitro', vCpu:4},
-  {id:'vm-cloud-api-02', hostname:'ip-10-0-1-102.eu-west-1.compute.internal', ipAddress:'10.0.1.102', os:'Amazon Linux', osVersion:'2023', status:'active', environment:'prod', cpuCores:4, ramGB:16, diskGB:80, hypervisor:'AWS Nitro', vCpu:4},
-  {id:'vm-cloud-worker-01', hostname:'vm-worker-01.francecentral.cloudapp.azure.com', ipAddress:'10.1.1.10', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'prod', cpuCores:4, ramGB:16, diskGB:120, hypervisor:'Azure Hyper-V', vCpu:4}
+  {id:'vm-web-01',  hostname:'web-01.prod.local',  ipAddress:'10.10.2.11', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'production', cpuCores:4, ramGB:16, diskGB:100, hypervisor:'ESXi', vCpu:4},
+  {id:'vm-web-02',  hostname:'web-02.prod.local',  ipAddress:'10.10.2.12', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'production', cpuCores:4, ramGB:16, diskGB:100, hypervisor:'ESXi', vCpu:4},
+  {id:'vm-app-01',  hostname:'app-01.prod.local',  ipAddress:'10.10.2.21', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'production', cpuCores:8, ramGB:32, diskGB:200, hypervisor:'ESXi', vCpu:8},
+  {id:'vm-app-02',  hostname:'app-02.prod.local',  ipAddress:'10.10.2.22', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'production', cpuCores:8, ramGB:32, diskGB:200, hypervisor:'ESXi', vCpu:8},
+  {id:'vm-db-01',   hostname:'db-01.prod.local',   ipAddress:'10.20.2.11', os:'Rocky Linux', osVersion:'9', status:'active', environment:'production', cpuCores:16, ramGB:128, diskGB:2000, hypervisor:'ESXi', vCpu:16},
+  {id:'vm-cloud-api-01', hostname:'ip-10-0-1-101.eu-west-1.compute.internal', ipAddress:'10.0.1.101', os:'Amazon Linux', osVersion:'2023', status:'active', environment:'production', cpuCores:4, ramGB:16, diskGB:80, hypervisor:'AWS Nitro', vCpu:4},
+  {id:'vm-cloud-api-02', hostname:'ip-10-0-1-102.eu-west-1.compute.internal', ipAddress:'10.0.1.102', os:'Amazon Linux', osVersion:'2023', status:'active', environment:'production', cpuCores:4, ramGB:16, diskGB:80, hypervisor:'AWS Nitro', vCpu:4},
+  {id:'vm-cloud-worker-01', hostname:'vm-worker-01.francecentral.cloudapp.azure.com', ipAddress:'10.1.1.10', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'production', cpuCores:4, ramGB:16, diskGB:120, hypervisor:'Azure Hyper-V', vCpu:4}
 ] AS row
 MERGE (v:Server:Virtual {id: row.id})
 SET v += row;
@@ -66,12 +66,12 @@ SET c += row;
 // 4. APPLICATIONS
 // ---------------------------------------------------------------------
 UNWIND [
-  {id:'app-webportal', name:'Customer Web Portal', version:'4.2.0', criticality:'high',     environment:'prod', businessService:'E-commerce', description:'Public facing customer web portal'},
-  {id:'app-orderapi',  name:'Order API',           version:'2.4.1', criticality:'critical', environment:'prod', businessService:'E-commerce', description:'Order management REST API'},
-  {id:'app-authsvc',   name:'Auth Service',        version:'1.9.0', criticality:'critical', environment:'prod', businessService:'Platform',   description:'Central authentication & authorization service'},
-  {id:'app-billing',   name:'Billing Worker',      version:'1.4.2', criticality:'high',     environment:'prod', businessService:'Finance',    description:'Asynchronous billing/invoicing worker'},
-  {id:'app-crm',       name:'CRM',                 version:'9.1',   criticality:'medium',   environment:'prod', businessService:'Sales',      description:'Legacy customer relationship management app'},
-  {id:'app-cloudapi',  name:'Public Cloud API',    version:'3.1.0', criticality:'critical', environment:'prod', businessService:'Platform',   description:'Public API gateway hosted in AWS'}
+  {id:'app-webportal', name:'Customer Web Portal', version:'4.2.0', criticality:'high',     environment:'production', businessService:'E-commerce', description:'Public facing customer web portal'},
+  {id:'app-orderapi',  name:'Order API',           version:'2.4.1', criticality:'critical', environment:'production', businessService:'E-commerce', description:'Order management REST API'},
+  {id:'app-authsvc',   name:'Auth Service',        version:'1.9.0', criticality:'critical', environment:'production', businessService:'Platform',   description:'Central authentication & authorization service'},
+  {id:'app-billing',   name:'Billing Worker',      version:'1.4.2', criticality:'high',     environment:'production', businessService:'Finance',    description:'Asynchronous billing/invoicing worker'},
+  {id:'app-crm',       name:'CRM',                 version:'9.1',   criticality:'medium',   environment:'production', businessService:'Sales',      description:'Legacy customer relationship management app'},
+  {id:'app-cloudapi',  name:'Public Cloud API',    version:'3.1.0', criticality:'critical', environment:'production', businessService:'Platform',   description:'Public API gateway hosted in AWS'}
 ] AS row
 MERGE (a:Application {id: row.id})
 SET a += row;
@@ -180,9 +180,11 @@ SET c += row;
 // 10. ENVIRONMENTS & SLAs
 // ---------------------------------------------------------------------
 UNWIND [
-  {id:'env-prod',    name:'prod',    description:'Production'},
-  {id:'env-staging', name:'staging', description:'Pre-production staging'},
-  {id:'env-dev',     name:'dev',     description:'Developer sandbox'}
+  {id:'env-production',     name:'production',     description:'Production'},
+  {id:'env-preproduction',  name:'pre-production',  description:'Pre-production / staging'},
+  {id:'env-qualification',  name:'qualification',   description:'QA / qualification / UAT'},
+  {id:'env-development',    name:'development',     description:'Developer sandbox'},
+  {id:'env-other',          name:'other',           description:'Other / miscellaneous environments'}
 ] AS row
 MERGE (e:Environment {id: row.id})
 SET e += row;
@@ -195,9 +197,9 @@ UNWIND [
 MERGE (s:SLA {id: row.id})
 SET s += row;
 
-// A small staging deployment, so "everything in staging" is non-trivial to query
+// A small pre-production deployment, so "everything in pre-production" is non-trivial to query
 MERGE (vm:Server:Virtual {id:'vm-staging-01'})
-SET vm += {hostname:'staging-01.internal', ipAddress:'10.10.3.11', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'staging', cpuCores:4, ramGB:16, diskGB:100, hypervisor:'ESXi', vCpu:4};
+SET vm += {hostname:'staging-01.internal', ipAddress:'10.10.3.11', os:'Ubuntu', osVersion:'22.04', status:'active', environment:'pre-production', cpuCores:4, ramGB:16, diskGB:100, hypervisor:'ESXi', vCpu:4};
 
 MERGE (ctr:Container {id:'ctr-staging-api-01'})
 SET ctr += {name:'order-api', image:'order-api', imageTag:'2.5.0-rc1', status:'running', ports:'8080', cpuLimit:1.0, memLimitMB:1024};
@@ -216,12 +218,12 @@ MERGE (cat:DataCategory {id: row.id})
 SET cat += row;
 
 UNWIND [
-  {id:'data-customers',        name:'Customer Database',      description:'Master customer records: identity, contact, address', type:'database',  format:'PostgreSQL',       volumeGB:120, environment:'prod'},
-  {id:'data-orders',           name:'Orders Database',        description:'Order transactions and line items',                   type:'database',  format:'PostgreSQL',       volumeGB:340, environment:'prod'},
-  {id:'data-auth-credentials', name:'Credential Store',       description:'Hashed passwords, API keys, and OAuth tokens',        type:'database',  format:'PostgreSQL',       volumeGB:8,   environment:'prod'},
-  {id:'data-billing-ledger',   name:'Billing Ledger',         description:'Invoices, payments, and billing transactions',        type:'database',  format:'PostgreSQL',       volumeGB:95,  environment:'prod'},
-  {id:'data-web-sessions',     name:'Web Session Cache',      description:'Ephemeral user session state',                        type:'cache',      format:'Redis',            volumeGB:4,   environment:'prod'},
-  {id:'data-api-logs',         name:'Cloud API Access Logs',  description:'Request/response logs for the public API gateway',    type:'log-store',  format:'JSON/CloudWatch',  volumeGB:210, environment:'prod'}
+  {id:'data-customers',        name:'Customer Database',      description:'Master customer records: identity, contact, address', type:'database',  format:'PostgreSQL',       volumeGB:120, environment:'production'},
+  {id:'data-orders',           name:'Orders Database',        description:'Order transactions and line items',                   type:'database',  format:'PostgreSQL',       volumeGB:340, environment:'production'},
+  {id:'data-auth-credentials', name:'Credential Store',       description:'Hashed passwords, API keys, and OAuth tokens',        type:'database',  format:'PostgreSQL',       volumeGB:8,   environment:'production'},
+  {id:'data-billing-ledger',   name:'Billing Ledger',         description:'Invoices, payments, and billing transactions',        type:'database',  format:'PostgreSQL',       volumeGB:95,  environment:'production'},
+  {id:'data-web-sessions',     name:'Web Session Cache',      description:'Ephemeral user session state',                        type:'cache',      format:'Redis',            volumeGB:4,   environment:'production'},
+  {id:'data-api-logs',         name:'Cloud API Access Logs',  description:'Request/response logs for the public API gateway',    type:'log-store',  format:'JSON/CloudWatch',  volumeGB:210, environment:'production'}
 ] AS row
 MERGE (d:Data {id: row.id})
 SET d += row;
@@ -523,7 +525,7 @@ MATCH (t:Ticket {id:'tkt-1003'}), (c:ChangeRequest {id:'chg-2026-0001'})
 MERGE (t)-[:RELATES_TO]->(c);
 
 // ---------------------------------------------------------------------
-// New staging deployment (VM + container + extra Application deployment edge)
+// New pre-production deployment (VM + container + extra Application deployment edge)
 // ---------------------------------------------------------------------
 MATCH (vm:Server:Virtual {id:'vm-staging-01'}), (host:Server:Physical {id:'srv-phy-002'})
 MERGE (vm)-[:HOSTED_ON]->(host);
@@ -687,3 +689,207 @@ MATCH (p:Probe {id:'probe-orderapi-process'}),  (a:Application {id:'app-orderapi
 MATCH (p:Probe {id:'probe-authsvc-healthcheck'}), (c:Container {id:'ctr-app-auth-01'})    MERGE (p)-[:MONITORS]->(c);
 MATCH (p:Probe {id:'probe-cloudapi-port'}),     (c:Container {id:'ctr-cloud-api-01'})     MERGE (p)-[:MONITORS]->(c);
 MATCH (p:Probe {id:'probe-billing-process'}),   (a:Application {id:'app-billing'})        MERGE (p)-[:MONITORS]->(a);
+
+// ---------------------------------------------------------------------
+// Source repositories & files (traceability for application capabilities)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'repo-orderapi',  name:'order-api',    url:'https://git.example.com/ecommerce/order-api',  vcsType:'git', defaultBranch:'main', description:'Order management REST API service'},
+  {id:'repo-webportal', name:'web-portal',   url:'https://git.example.com/ecommerce/web-portal', vcsType:'git', defaultBranch:'main', description:'Customer-facing web portal front end'}
+] AS row
+MERGE (r:Repository {id: row.id})
+SET r += row;
+
+UNWIND [
+  {id:'src-orderapi-ordercontroller', path:'src/main/java/com/example/orderapi/OrderController.java', language:'Java',       description:'REST controller exposing the order endpoints'},
+  {id:'src-orderapi-pricingengine',   path:'src/main/java/com/example/orderapi/PricingEngine.java',    language:'Java',       description:'Discount/tax pricing logic'},
+  {id:'src-webportal-checkout',       path:'src/pages/Checkout.tsx',                                   language:'TypeScript', description:'Checkout page component'}
+] AS row
+MERGE (f:SourceFile {id: row.id})
+SET f += row;
+
+UNWIND [
+  ['repo-orderapi','src-orderapi-ordercontroller'], ['repo-orderapi','src-orderapi-pricingengine'],
+  ['repo-webportal','src-webportal-checkout']
+] AS pair
+MATCH (r:Repository {id: pair[0]}), (sf:SourceFile {id: pair[1]})
+MERGE (r)-[:CONTAINS_FILE]->(sf);
+
+UNWIND [
+  ['app-orderapi','repo-orderapi'], ['app-webportal','repo-webportal']
+] AS pair
+MATCH (a:Application {id: pair[0]}), (r:Repository {id: pair[1]})
+MERGE (a)-[:SOURCE_REPOSITORY]->(r);
+
+// ---------------------------------------------------------------------
+// Application capabilities: business Functions + the software/dev-level
+// artifacts that realize them (Menu, Form, Report, Export, Endpoint,
+// SettingFile, Algorithm)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'func-order-placement', name:'Order placement', description:'Capture and validate a new customer order', category:'Order management'},
+  {id:'func-order-pricing',   name:'Order pricing',    description:'Compute order total including discounts and tax', category:'Order management'},
+  {id:'func-checkout',        name:'Checkout',         description:'Guide the customer through payment and order confirmation', category:'E-commerce'}
+] AS row
+MERGE (fn:Function {id: row.id})
+SET fn += row;
+
+UNWIND [
+  {id:'menu-orderapi-admin',     name:'Order Admin', path:'Admin > Orders',              description:'Back-office order management menu', order:1},
+  {id:'menu-webportal-checkout', name:'Checkout',    path:'Shop > Cart > Checkout',       description:'Checkout entry point in the site navigation', order:3}
+] AS row
+MERGE (m:Menu {id: row.id})
+SET m += row;
+
+UNWIND [
+  {id:'form-orderapi-neworder',   name:'New Order Form', description:'Form used to capture a new order', module:'orders'},
+  {id:'form-webportal-checkout',  name:'Checkout Form',  description:'Payment and delivery details form', module:'checkout'}
+] AS row
+MERGE (fo:Form {id: row.id})
+SET fo += row;
+
+UNWIND [
+  {id:'report-orderapi-dailysales', name:'Daily Sales Report', description:'Daily summary of orders and revenue', format:'pdf', schedule:'daily 06:00'}
+] AS row
+MERGE (rp:Report {id: row.id})
+SET rp += row;
+
+UNWIND [
+  {id:'export-orderapi-orders-csv', name:'Orders CSV Export', description:'Nightly export of all orders for the finance data warehouse', format:'csv', destination:'sftp://reporting.example.com/orders'}
+] AS row
+MERGE (ex:Export {id: row.id})
+SET ex += row;
+
+UNWIND [
+  {id:'ep-orderapi-createorder', name:'Create Order', description:'Creates a new order', method:'POST', path:'/api/orders',      protocol:'REST'},
+  {id:'ep-orderapi-getorder',    name:'Get Order',    description:'Fetches an order by id', method:'GET', path:'/api/orders/{id}', protocol:'REST'}
+] AS row
+MERGE (ep:Endpoint {id: row.id})
+SET ep += row;
+
+UNWIND [
+  {id:'cfg-orderapi-application', name:'application.yml', path:'src/main/resources/application.yml', description:'Spring Boot configuration', format:'yaml'}
+] AS row
+MERGE (sf:SettingFile {id: row.id})
+SET sf += row;
+
+UNWIND [
+  {id:'algo-orderapi-pricing', name:'Discount pricing algorithm', description:'Applies tiered discounts and tax rules to compute order total', complexity:'medium', generatedBy:'ai-generated', confidence:0.82, extractedAt:'2026-07-15T10:00:00'},
+  {id:'algo-orderapi-fraud',   name:'Fraud risk scoring',         description:'Scores incoming orders for fraud risk before confirmation',     complexity:'high',   generatedBy:'manual'}
+] AS row
+MERGE (al:Algorithm {id: row.id})
+SET al += row;
+
+UNWIND [
+  ['app-orderapi','func-order-placement'], ['app-orderapi','func-order-pricing'], ['app-webportal','func-checkout']
+] AS pair
+MATCH (a:Application {id: pair[0]}), (fn:Function {id: pair[1]}) MERGE (a)-[:HAS_FUNCTION]->(fn);
+
+UNWIND [
+  ['app-orderapi','menu-orderapi-admin'], ['app-webportal','menu-webportal-checkout']
+] AS pair
+MATCH (a:Application {id: pair[0]}), (m:Menu {id: pair[1]}) MERGE (a)-[:HAS_MENU]->(m);
+
+UNWIND [
+  ['app-orderapi','form-orderapi-neworder'], ['app-webportal','form-webportal-checkout']
+] AS pair
+MATCH (a:Application {id: pair[0]}), (fo:Form {id: pair[1]}) MERGE (a)-[:HAS_FORM]->(fo);
+
+MATCH (a:Application {id:'app-orderapi'}), (rp:Report {id:'report-orderapi-dailysales'}) MERGE (a)-[:HAS_REPORT]->(rp);
+MATCH (a:Application {id:'app-orderapi'}), (ex:Export {id:'export-orderapi-orders-csv'}) MERGE (a)-[:HAS_EXPORT]->(ex);
+
+UNWIND [
+  ['app-orderapi','ep-orderapi-createorder'], ['app-orderapi','ep-orderapi-getorder']
+] AS pair
+MATCH (a:Application {id: pair[0]}), (ep:Endpoint {id: pair[1]}) MERGE (a)-[:HAS_ENDPOINT]->(ep);
+
+MATCH (a:Application {id:'app-orderapi'}), (sf:SettingFile {id:'cfg-orderapi-application'}) MERGE (a)-[:HAS_SETTING_FILE]->(sf);
+
+UNWIND [
+  ['app-orderapi','algo-orderapi-pricing'], ['app-orderapi','algo-orderapi-fraud']
+] AS pair
+MATCH (a:Application {id: pair[0]}), (al:Algorithm {id: pair[1]}) MERGE (a)-[:HAS_ALGORITHM]->(al);
+
+// Business function -> the software/dev-level artifacts that realize it
+UNWIND [
+  ['func-order-placement','form-orderapi-neworder'], ['func-order-placement','ep-orderapi-createorder'],
+  ['func-order-pricing','algo-orderapi-pricing'],
+  ['func-checkout','form-webportal-checkout'], ['func-checkout','menu-webportal-checkout']
+] AS pair
+MATCH (fn:Function {id: pair[0]}), (target {id: pair[1]})
+MERGE (fn)-[:REALIZED_BY]->(target);
+
+// Traceability from capability artifacts to the source files that implement them
+UNWIND [
+  ['ep-orderapi-createorder','src-orderapi-ordercontroller'], ['ep-orderapi-getorder','src-orderapi-ordercontroller'],
+  ['algo-orderapi-pricing','src-orderapi-pricingengine'],
+  ['form-webportal-checkout','src-webportal-checkout']
+] AS pair
+MATCH (artifact {id: pair[0]}), (sf:SourceFile {id: pair[1]})
+MERGE (artifact)-[:DEFINED_IN]->(sf);
+
+// ---------------------------------------------------------------------
+// Master data (generic reference/code lists) - MasterDataType defines a
+// list, MasterData holds its individual values
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'mdt-country',  name:'Country',        code:'COUNTRY',  description:'ISO country reference list'},
+  {id:'mdt-priority', name:'Priority Level', code:'PRIORITY', description:'Generic priority levels used across ITSM records'}
+] AS row
+MERGE (t:MasterDataType {id: row.id})
+SET t += row;
+
+UNWIND [
+  {id:'md-country-fr',   name:'France',  code:'FR',   description:'France',  status:'active', sortOrder:1},
+  {id:'md-country-de',   name:'Germany', code:'DE',   description:'Germany', status:'active', sortOrder:2},
+  {id:'md-priority-low', name:'Low',     code:'LOW',  description:'Low priority',  status:'active', sortOrder:1},
+  {id:'md-priority-high',name:'High',    code:'HIGH', description:'High priority', status:'active', sortOrder:2}
+] AS row
+MERGE (m:MasterData {id: row.id})
+SET m += row;
+
+UNWIND [
+  ['md-country-fr','mdt-country'],   ['md-country-de','mdt-country'],
+  ['md-priority-low','mdt-priority'],['md-priority-high','mdt-priority']
+] AS pair
+MATCH (m:MasterData {id: pair[0]}), (t:MasterDataType {id: pair[1]})
+MERGE (m)-[:OF_TYPE]->(t);
+
+// ---------------------------------------------------------------------
+// Business domains: first-class categorization for Application, alongside
+// the existing flat `businessService` property (same denormalization
+// pattern as Environment/environment - see README section 1)
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'bizdom-ecommerce', name:'E-commerce', description:'Customer-facing shopping and ordering'},
+  {id:'bizdom-platform',  name:'Platform',    description:'Shared platform services (auth, API gateway, …)'},
+  {id:'bizdom-finance',   name:'Finance',     description:'Billing, invoicing, and financial reporting'},
+  {id:'bizdom-sales',     name:'Sales',       description:'Sales and customer relationship management'}
+] AS row
+MERGE (b:BusinessDomain {id: row.id})
+SET b += row;
+
+// Link every Application to the BusinessDomain matching its existing
+// `businessService` string property (same backfill technique used for
+// IN_ENVIRONMENT above).
+MATCH (a:Application)
+WHERE a.businessService IS NOT NULL
+MATCH (b:BusinessDomain {name: a.businessService})
+MERGE (a)-[:IN_BUSINESS_DOMAIN]->(b);
+
+// ---------------------------------------------------------------------
+// DNS aliases for virtual servers
+// ---------------------------------------------------------------------
+UNWIND [
+  {id:'alias-shop',    hostname:'shop.example.com', recordType:'CNAME', ttl:300, description:'Public marketing alias for the web portal'},
+  {id:'alias-www',     hostname:'www.example.com',  recordType:'CNAME', ttl:300, description:'Legacy www alias for the web portal'},
+  {id:'alias-api',     hostname:'api.example.com',  recordType:'CNAME', ttl:300, description:'Public alias for the cloud API'}
+] AS row
+MERGE (al:Alias {id: row.id})
+SET al += row;
+
+UNWIND [
+  ['alias-shop','vm-web-01'], ['alias-www','vm-web-01'], ['alias-api','vm-cloud-api-01']
+] AS pair
+MATCH (al:Alias {id: pair[0]}), (v:Server:Virtual {id: pair[1]})
+MERGE (al)-[:ALIAS_OF]->(v);

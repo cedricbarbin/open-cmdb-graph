@@ -30,10 +30,11 @@ install it, and its full CLI reference, go to the source:
   example ontology (repositories, issues, PRs, deployments, services,
   incidents). Kept here for comparison only; the app doesn't use it.
 - **`cmdb.yaml`** — **this project's own ontology.** It extends `_base.yaml`
-  with Open CMDB Graph's actual data model: all 27 entity types across the
-  9 categories in `app/src/lib/nodeTypes.js` (Locations, Compute,
-  Applications & Data, Network & Assets, Monitoring, IT Master Data,
-  Organization, Finance, ITSM), the full relationship schema from
+  with Open CMDB Graph's actual data model: all 41 entity types across the
+  10 categories in `app/src/lib/nodeTypes.js` (Locations, Compute,
+  Applications & Data, Application Capabilities, Network & Assets,
+  Monitoring, IT Master Data, Organization, Finance, ITSM), the full
+  relationship schema from
   `cypher/01_constraints_and_indexes.cypher`/`cypher/02_sample_data.cypher`,
   plus CMDB-specific document templates, decision traces, demo scenarios,
   Cypher-backed agent tools, and a system prompt for a CMDB-aware assistant.
