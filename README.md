@@ -127,7 +127,7 @@ queries (`MATCH (s:Server)`) work across both; same pattern for
 
 (:DataFlow)          -[:SOURCE_DATA]->  (:Data)
 (:DataFlow)          -[:TARGET_DATA]->  (:Data)
-(:Application)       -[:IMPLEMENTS]->   (:DataFlow)   // which app runs/owns the pipeline
+(:Application | :Container) -[:IMPLEMENTS]-> (:DataFlow)   // which app/container runs/owns the pipeline
 
 (:Probe)             -[:MONITORS]->     (:Server:Virtual | :Container | :Application)
 
@@ -550,8 +550,9 @@ A second batch, also now implemented:
   cookbook section N.
 - `:DataFlow` nodes modeling ETL/replication pipelines between `:Data`
   assets (`SOURCE_DATA`/`TARGET_DATA`), independent of the applications that
-  own the data, plus `(:Application)-[:IMPLEMENTS]->(:DataFlow)` to record
-  which application actually runs a given pipeline — cookbook section O.
+  own the data, plus `(:Application | :Container)-[:IMPLEMENTS]->(:DataFlow)`
+  to record which application - or, more granularly, which specific
+  container - actually runs a given pipeline — cookbook section O.
 
 A third batch, also now implemented:
 - Application capability decomposition: `:Function` (business capability)

@@ -665,7 +665,7 @@ MATCH (a:Application {id: pair[0]}), (av:ApplicationVersion {id: pair[1]})
 MERGE (a)-[:HAD_VERSION]->(av);
 
 // ---------------------------------------------------------------------
-// Data flows: source/target Data assets + implementing Application
+// Data flows: source/target Data assets + implementing Application/Container
 // ---------------------------------------------------------------------
 MATCH (f:DataFlow {id:'flow-orders-billing-sync'}), (d:Data {id:'data-orders'})
 MERGE (f)-[:SOURCE_DATA]->(d);
@@ -673,6 +673,8 @@ MATCH (f:DataFlow {id:'flow-orders-billing-sync'}), (d:Data {id:'data-billing-le
 MERGE (f)-[:TARGET_DATA]->(d);
 MATCH (f:DataFlow {id:'flow-orders-billing-sync'}), (a:Application {id:'app-billing'})
 MERGE (a)-[:IMPLEMENTS]->(f);
+MATCH (f:DataFlow {id:'flow-orders-billing-sync'}), (c:Container {id:'ctr-worker-billing-01'})
+MERGE (c)-[:IMPLEMENTS]->(f);
 
 MATCH (f:DataFlow {id:'flow-customer-pii-masking'}), (d:Data {id:'data-customers'})
 MERGE (f)-[:SOURCE_DATA]->(d);
@@ -680,6 +682,8 @@ MATCH (f:DataFlow {id:'flow-customer-pii-masking'}), (d:Data {id:'data-api-logs'
 MERGE (f)-[:TARGET_DATA]->(d);
 MATCH (f:DataFlow {id:'flow-customer-pii-masking'}), (a:Application {id:'app-cloudapi'})
 MERGE (a)-[:IMPLEMENTS]->(f);
+MATCH (f:DataFlow {id:'flow-customer-pii-masking'}), (c:Container {id:'ctr-cloud-api-01'})
+MERGE (c)-[:IMPLEMENTS]->(f);
 
 // ---------------------------------------------------------------------
 // Supervision probes -> the Virtual Server / Container / Application they monitor

@@ -332,18 +332,19 @@ RETURN a.name AS application, av.version AS versionAtDate;
 // O. DATA FLOWS (ETL / replication pipelines between Data assets)
 // ---------------------------------------------------------------------
 
-// O1. All data flows with their source/target data and implementing application
+// O1. All data flows with their source/target data and implementing application/container
 MATCH (f:DataFlow)
 OPTIONAL MATCH (f)-[:SOURCE_DATA]->(src:Data)
 OPTIONAL MATCH (f)-[:TARGET_DATA]->(tgt:Data)
-OPTIONAL MATCH (impl:Application)-[:IMPLEMENTS]->(f)
+OPTIONAL MATCH (impl)-[:IMPLEMENTS]->(f) WHERE impl:Application OR impl:Container
 RETURN f.name AS dataFlow, f.type AS type, f.schedule AS schedule,
        collect(DISTINCT src.name) AS sources, collect(DISTINCT tgt.name) AS targets,
        collect(DISTINCT impl.name) AS implementedBy;
 
-// O2. Which application implements a given data flow
-MATCH (a:Application)-[:IMPLEMENTS]->(f:DataFlow {id: 'flow-customer-pii-masking'})
-RETURN f.name AS dataFlow, a.name AS implementedBy;
+// O2. Which application/container implements a given data flow
+MATCH (impl)-[:IMPLEMENTS]->(f:DataFlow {id: 'flow-customer-pii-masking'})
+WHERE impl:Application OR impl:Container
+RETURN f.name AS dataFlow, labels(impl) AS implementorType, impl.name AS implementedBy;
 
 // O3. Downstream data lineage extended through pipelines: everything a data
 //     asset feeds into, beyond direct application OWNS_DATA/CONSUMES_DATA

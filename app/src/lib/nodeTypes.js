@@ -183,7 +183,8 @@ export const NODE_TYPES = [
     ],
     relationships: [
       { key: 'runsOn', label: 'Runs on (server)', relType: 'RUNS_ON', direction: 'out', targetLabels: ['Server'], cardinality: 'one', required: true },
-      { key: 'probes', label: 'Monitoring probes', relType: 'MONITORS', direction: 'in', targetLabels: ['Probe'], cardinality: 'many' }
+      { key: 'probes', label: 'Monitoring probes', relType: 'MONITORS', direction: 'in', targetLabels: ['Probe'], cardinality: 'many' },
+      { key: 'implementsFlows', label: 'Implements (data flows)', relType: 'IMPLEMENTS', direction: 'out', targetLabels: ['DataFlow'], cardinality: 'many' }
     ]
   },
 
@@ -375,7 +376,7 @@ export const NODE_TYPES = [
     relationships: [
       { key: 'sourceData', label: 'Source data', relType: 'SOURCE_DATA', direction: 'out', targetLabels: ['Data'], cardinality: 'many', required: true },
       { key: 'targetData', label: 'Target data', relType: 'TARGET_DATA', direction: 'out', targetLabels: ['Data'], cardinality: 'many', required: true },
-      { key: 'implementedBy', label: 'Implemented by (application)', relType: 'IMPLEMENTS', direction: 'in', targetLabels: ['Application'], cardinality: 'many' }
+      { key: 'implementedBy', label: 'Implemented by (application/container)', relType: 'IMPLEMENTS', direction: 'in', targetLabels: ['Application', 'Container'], cardinality: 'many' }
     ]
   },
   {

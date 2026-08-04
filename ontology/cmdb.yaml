@@ -1190,6 +1190,9 @@ relationships:
   - type: IMPLEMENTS
     source: Application
     target: DataFlow
+  - type: IMPLEMENTS
+    source: Container
+    target: DataFlow
 
   # Monitoring
   - type: MONITORS
