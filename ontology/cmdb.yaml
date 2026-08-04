@@ -1496,6 +1496,43 @@ demo_scenarios:
       - "Which algorithms were extracted by AI and still need human review?"
 
 agent_tools:
+  # Every read-only query in cypher/03_sample_queries.cypher (sections A-T)
+  # has exactly one corresponding tool below, in the same order, so this
+  # list is a complete map of the cookbook to agent-callable tools. Section
+  # Q (write operations) and H3 (a write embedded in section H) are
+  # intentionally not included - they mirror the app's own Create/Edit/
+  # Delete forms, not read lookups for a chat agent to call. Node labels
+  # here are this ontology's flattened single-label entity types
+  # (PhysicalServer/VirtualServer/Datacenter/CloudRegion), not the real
+  # app's composite Neo4j labels (:Server:Physical, :Location:Datacenter,
+  # ...) - see entity_types above.
+
+  # --- A. Discovery / overview ---------------------------------------
+  - name: get_graph_snapshot
+    description: A capped snapshot of the whole graph (the app's own default view)
+    cypher: |
+      MATCH (n)-[r]-(m)
+      RETURN n, r, m
+      LIMIT $limit
+    parameters:
+      - name: limit
+        type: integer
+        default: 150
+
+  - name: count_nodes_by_label
+    description: Count of nodes per label, most common first
+    cypher: |
+      MATCH (n)
+      RETURN labels(n) AS labels, count(*) AS total
+      ORDER BY total DESC
+
+  - name: count_relationships_by_type
+    description: Count of relationships per type, most common first
+    cypher: |
+      MATCH ()-[r]->()
+      RETURN type(r) AS rel_type, count(*) AS total
+      ORDER BY total DESC
+
   - name: search_entity
     description: Full-text search across every CMDB entity (name, hostname, title, id, address, contract number)
     cypher: |
@@ -1511,17 +1548,39 @@ agent_tools:
         type: integer
         default: 10
 
-  - name: get_application_blast_radius
-    description: Find every application that transitively depends on a given application
+  # --- B. Locations / infrastructure topology -------------------------
+  - name: get_datacenter_inventory
+    description: Everything physically hosted in a given datacenter - physical hosts and the VMs on them
     cypher: |
-      MATCH (app:Application {id: $application_id})<-[:DEPENDS_ON*1..5]-(impacted:Application)
-      RETURN DISTINCT impacted.name AS impacted_application, impacted.criticality AS criticality
-      ORDER BY criticality DESC
+      MATCH (loc:Datacenter {id: $datacenter_id})<-[:LOCATED_IN]-(physical:PhysicalServer)
+      OPTIONAL MATCH (vm:VirtualServer)-[:HOSTED_ON]->(physical)
+      RETURN physical.hostname AS physical_host, collect(vm.hostname) AS virtual_machines
     parameters:
-      - name: application_id
+      - name: datacenter_id
         type: string
-        description: Application id to trace reverse dependencies from
+        description: Datacenter id
 
+  - name: get_cloud_region_stack
+    description: Full stack for a cloud region - VMs, the containers running on them, and the applications deployed in those containers
+    cypher: |
+      MATCH (loc:CloudRegion {id: $region_id})<-[:LOCATED_IN]-(vm:VirtualServer)
+      OPTIONAL MATCH (vm)<-[:RUNS_ON]-(ctr:Container)<-[:DEPLOYED_ON]-(app:Application)
+      RETURN vm.hostname AS virtual_machine, collect(DISTINCT ctr.name) AS containers, collect(DISTINCT app.name) AS applications
+    parameters:
+      - name: region_id
+        type: string
+        description: CloudRegion id
+
+  - name: get_physical_host_capacity
+    description: Capacity summary per physical host - VM count and total allocated vCPU/RAM
+    cypher: |
+      MATCH (host:PhysicalServer)
+      OPTIONAL MATCH (vm:VirtualServer)-[:HOSTED_ON]->(host)
+      RETURN host.hostname AS host, host.cpuCores AS host_cpu, host.ramGB AS host_ram,
+             count(vm) AS vm_count, sum(vm.vCpu) AS allocated_vcpu, sum(vm.ramGB) AS allocated_ram_gb
+      ORDER BY host
+
+  # --- C. Application topology / dependencies -------------------------
   - name: get_application_topology
     description: Full deployment path for an application - app to container/VM to physical host to location
     cypher: |
@@ -1534,6 +1593,39 @@ agent_tools:
         type: string
         description: Application id
 
+  - name: get_application_dependency_graph
+    description: Forward dependency graph for an application - what it depends on, transitively, up to 5 hops
+    cypher: |
+      MATCH path = (app:Application {id: $application_id})-[:DEPENDS_ON*1..5]->(dep:Application)
+      RETURN path
+    parameters:
+      - name: application_id
+        type: string
+        description: Application id
+
+  - name: get_application_blast_radius
+    description: Find every application that transitively depends on a given application
+    cypher: |
+      MATCH (app:Application {id: $application_id})<-[:DEPENDS_ON*1..5]-(impacted:Application)
+      RETURN DISTINCT impacted.name AS impacted_application, impacted.criticality AS criticality
+      ORDER BY criticality DESC
+    parameters:
+      - name: application_id
+        type: string
+        description: Application id to trace reverse dependencies from
+
+  - name: get_team_applications
+    description: Applications owned by a team, most critical first
+    cypher: |
+      MATCH (t:Team {id: $team_id})-[:OWNS]->(app:Application)
+      RETURN t.name AS team, app.name AS application, app.criticality AS criticality
+      ORDER BY criticality DESC
+    parameters:
+      - name: team_id
+        type: string
+        description: Team id
+
+  # --- D. Incident / ticket management --------------------------------
   - name: list_open_incidents
     description: List open or investigating incidents with what they impact, most severe first
     cypher: |
@@ -1549,18 +1641,122 @@ agent_tools:
         type: integer
         default: 20
 
-  - name: get_change_approval_status
-    description: Full multi-step approval chain for a change request
+  - name: get_incident_blast_radius
+    description: Every application reachable from what an incident directly impacts, via hosting/deployment chains
     cypher: |
-      MATCH (c:ChangeRequest {id: $change_id})
-      OPTIONAL MATCH (c)-[:HAS_APPROVAL]->(a:Approval)
-      OPTIONAL MATCH (a)-[:DECIDED_BY]->(decider:Person)
-      RETURN c.title AS change, a.step AS step, a.status AS status, decider.name AS decided_by
-      ORDER BY step
+      MATCH (i:Incident {id: $incident_id})-[:IMPACTS]->(res)
+      OPTIONAL MATCH (res)<-[:DEPLOYED_ON|RUNS_ON|HOSTED_ON*0..3]-(downstream:Application)
+      RETURN i.title AS incident, collect(DISTINCT coalesce(downstream.name, res.name)) AS affected_applications
     parameters:
-      - name: change_id
+      - name: incident_id
         type: string
-        description: Change request id
+        description: Incident id
+
+  - name: get_person_tickets
+    description: Open tickets currently assigned to a person, sorted by priority
+    cypher: |
+      MATCH (p:Person {id: $person_id})<-[:ASSIGNED_TO]-(t:Ticket)
+      WHERE t.status <> 'closed'
+      RETURN t.id AS ticket, t.title AS title, t.priority AS priority, t.status AS status
+      ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END
+    parameters:
+      - name: person_id
+        type: string
+        description: Person id
+
+  - name: get_incident_mttr_by_severity
+    description: Mean time to resolve (MTTR), in minutes, per incident severity
+    cypher: |
+      MATCH (i:Incident)
+      WHERE i.resolvedAt IS NOT NULL
+      RETURN i.severity AS severity,
+             avg(duration.inSeconds(i.createdAt, i.resolvedAt).seconds) / 60.0 AS mttr_minutes
+      ORDER BY severity
+
+  - name: list_tickets_overview
+    description: Every ticket with its related incident, concerned resource, and assignee, most recent first
+    cypher: |
+      MATCH (t:Ticket)
+      OPTIONAL MATCH (t)-[:TRACKS]->(i:Incident)
+      OPTIONAL MATCH (t)-[:CONCERNS]->(res)
+      OPTIONAL MATCH (t)-[:ASSIGNED_TO]->(assignee:Person)
+      RETURN t.id AS ticket, t.title AS title, t.status AS status, t.priority AS priority,
+             i.id AS related_incident, res.name AS concerns, assignee.name AS assignee
+      ORDER BY t.createdAt DESC
+      LIMIT $limit
+    parameters:
+      - name: limit
+        type: integer
+        default: 20
+
+  - name: get_resource_incident_history
+    description: Every incident ever reported against a given server/application/container
+    cypher: |
+      MATCH (res {id: $resource_id})<-[:IMPACTS]-(i:Incident)
+      RETURN i.id AS incident, i.title AS title, i.severity AS severity, i.status AS status
+      ORDER BY i.createdAt DESC
+    parameters:
+      - name: resource_id
+        type: string
+        description: Id of the server, application, container, or other resource
+
+  # --- E. Network / IPAM ----------------------------------------------
+  - name: get_physical_host_network_inventory
+    description: Full NIC + IP inventory for a physical host
+    cypher: |
+      MATCH (s:PhysicalServer {id: $server_id})-[:HAS_INTERFACE]->(nic:NetworkInterface)-[:HAS_IP]->(ip:IPAddress)
+      RETURN s.hostname AS host, nic.name AS interface, nic.type AS interface_type, ip.address AS ip_address
+    parameters:
+      - name: server_id
+        type: string
+        description: PhysicalServer id
+
+  - name: get_server_by_ip
+    description: Reverse lookup - which physical server/interface owns a given IP address
+    cypher: |
+      MATCH (ip:IPAddress {address: $ip_address})<-[:HAS_IP]-(nic:NetworkInterface)<-[:HAS_INTERFACE]-(s:PhysicalServer)
+      RETURN s.hostname AS server, nic.name AS interface, ip.address AS ip_address
+    parameters:
+      - name: ip_address
+        type: string
+        description: IP address, e.g. '10.20.1.111'
+
+  - name: list_management_interfaces
+    description: All management interfaces (iDRAC/iLO-style) across the estate, for a firewall/VLAN audit
+    cypher: |
+      MATCH (s:PhysicalServer)-[:HAS_INTERFACE]->(nic:NetworkInterface {type: 'management'})-[:HAS_IP]->(ip:IPAddress)
+      RETURN s.hostname AS server, nic.name AS interface, ip.address AS ip_address
+      ORDER BY server
+
+  - name: get_virtual_server_aliases
+    description: DNS aliases pointing at a given virtual server
+    cypher: |
+      MATCH (v:VirtualServer {id: $server_id})<-[:ALIAS_OF]-(al:Alias)
+      RETURN v.hostname AS server, al.hostname AS alias, al.recordType AS record_type, al.ttl AS ttl
+    parameters:
+      - name: server_id
+        type: string
+        description: VirtualServer id
+
+  - name: get_server_by_alias
+    description: Reverse lookup - which virtual server a DNS alias resolves to
+    cypher: |
+      MATCH (al:Alias {hostname: $alias_hostname})-[:ALIAS_OF]->(v:VirtualServer)
+      RETURN al.hostname AS alias, v.hostname AS server, v.ipAddress AS ip_address
+    parameters:
+      - name: alias_hostname
+        type: string
+        description: DNS alias hostname, e.g. 'shop.example.com'
+
+  # --- F. Vendors / contracts (asset & warranty tracking) -------------
+  - name: get_server_vendor_contract
+    description: Vendor and support contract covering each physical server
+    cypher: |
+      MATCH (s:PhysicalServer)-[:SUPPLIED_BY]->(v:Vendor)
+      OPTIONAL MATCH (s)-[:COVERED_BY]->(c:Contract)
+      RETURN s.hostname AS server, s.model AS model, v.name AS vendor,
+             c.contractNumber AS contract, c.endDate AS contract_end
+      ORDER BY contract_end
 
   - name: find_expiring_contracts
     description: Support/maintenance contracts expiring within N days, with the servers they cover
@@ -1574,6 +1770,81 @@ agent_tools:
       - name: within_days
         type: integer
         default: 90
+
+  - name: get_vendor_spend
+    description: Total contract spend per vendor
+    cypher: |
+      MATCH (v:Vendor)<-[:PROVIDED_BY]-(c:Contract)
+      RETURN v.name AS vendor, count(c) AS contracts, sum(c.cost) AS total_cost, head(collect(c.currency)) AS currency
+
+  # --- G. Change management --------------------------------------------
+  - name: list_scheduled_changes
+    description: Upcoming/scheduled change requests (a simple change calendar)
+    cypher: |
+      MATCH (c:ChangeRequest)
+      WHERE c.status IN ['approved', 'scheduled']
+      OPTIONAL MATCH (c)-[:CONCERNS]->(res)
+      RETURN c.id AS change, c.title AS title, c.riskLevel AS risk,
+             c.scheduledStart AS start, c.scheduledEnd AS end, res.name AS concerns
+      ORDER BY start
+
+  - name: list_high_risk_draft_changes
+    description: High-risk changes still in draft, needing review before they can be scheduled
+    cypher: |
+      MATCH (c:ChangeRequest {status: 'draft'})
+      WHERE c.riskLevel IN ['high', 'medium']
+      OPTIONAL MATCH (c)-[:REQUESTED_BY]->(requester:Person)
+      RETURN c.id AS change, c.title AS title, c.riskLevel AS risk, requester.name AS requested_by
+
+  - name: get_change_request_details
+    description: A change request's requester, approver, concerned resource, and linked tickets
+    cypher: |
+      MATCH (c:ChangeRequest {id: $change_id})
+      OPTIONAL MATCH (c)-[:REQUESTED_BY]->(requester:Person)
+      OPTIONAL MATCH (c)-[:APPROVED_BY]->(approver:Person)
+      OPTIONAL MATCH (c)-[:CONCERNS]->(res)
+      OPTIONAL MATCH (t:Ticket)-[:RELATES_TO]->(c)
+      RETURN c.title AS change, requester.name AS requested_by, approver.name AS approved_by,
+             res.name AS concerns, collect(t.id) AS linked_tickets
+    parameters:
+      - name: change_id
+        type: string
+        description: ChangeRequest id
+
+  # --- H. Environments / SLAs (H3 is a write - not included) ----------
+  - name: get_environment_members
+    description: Everything running in a given environment (first-class Environment node, not a property filter), with any containers running on it
+    cypher: |
+      MATCH (e:Environment {name: $environment_name})<-[:IN_ENVIRONMENT]-(res)
+      OPTIONAL MATCH (res)<-[:RUNS_ON]-(ctr:Container)
+      RETURN e.name AS environment, labels(res) AS resource_type, coalesce(res.hostname, res.name) AS resource,
+             collect(ctr.name) AS containers
+    parameters:
+      - name: environment_name
+        type: string
+        description: Environment name, e.g. 'production' or 'pre-production'
+
+  - name: get_sla_compliance
+    description: Applications, their SLA tier, and count of open incidents against them
+    cypher: |
+      MATCH (a:Application)-[:HAS_SLA]->(sla:SLA)
+      OPTIONAL MATCH (a)<-[:IMPACTS]-(i:Incident) WHERE i.status IN ['open', 'investigating']
+      RETURN a.name AS application, sla.name AS sla_tier, sla.uptimeTargetPct AS uptime_target,
+             count(i) AS open_incidents
+      ORDER BY sla.uptimeTargetPct DESC
+
+  # --- I. Data & classification ----------------------------------------
+  - name: get_application_data_footprint
+    description: What an application owns vs. merely consumes
+    cypher: |
+      MATCH (a:Application {id: $application_id})
+      OPTIONAL MATCH (a)-[:OWNS_DATA]->(owned:Data)
+      OPTIONAL MATCH (a)-[:CONSUMES_DATA]->(consumed:Data)
+      RETURN a.name AS application, collect(DISTINCT owned.name) AS owns_data, collect(DISTINCT consumed.name) AS consumes_data
+    parameters:
+      - name: application_id
+        type: string
+        description: Application id
 
   - name: get_data_lineage
     description: System of record and every other application reading a given data asset
@@ -1590,6 +1861,186 @@ agent_tools:
         type: string
         description: Data asset id
 
+  - name: get_regulated_data_audit
+    description: Every application that touches regulated data (PII, credentials, ...), whether as owner or consumer
+    cypher: |
+      MATCH (a:Application)-[r:OWNS_DATA|CONSUMES_DATA]->(d:Data)-[:CLASSIFIED_AS]->(cat:DataCategory)
+      WHERE cat.regulatoryScope <> 'none'
+      RETURN DISTINCT a.name AS application, d.name AS data, type(r) AS relationship,
+             cat.name AS category, cat.regulatoryScope AS regulation
+      ORDER BY regulation, application
+
+  - name: get_data_classification_breakdown
+    description: How many data assets fall into each sensitivity tier
+    cypher: |
+      MATCH (d:Data)-[:CLASSIFIED_AS]->(cat:DataCategory)
+      RETURN cat.sensitivity AS sensitivity, collect(DISTINCT cat.name) AS categories, count(DISTINCT d) AS data_assets
+      ORDER BY CASE sensitivity WHEN 'restricted' THEN 0 WHEN 'confidential' THEN 1 WHEN 'internal' THEN 2 ELSE 3 END
+
+  - name: get_server_data_blast_radius
+    description: If a server goes down, which data assets (and their classification) are affected, and which applications rely on that data
+    cypher: |
+      MATCH (s {id: $server_id})<-[:STORED_ON]-(d:Data)
+      OPTIONAL MATCH (d)-[:CLASSIFIED_AS]->(cat:DataCategory)
+      OPTIONAL MATCH (d)<-[:OWNS_DATA|CONSUMES_DATA]-(a:Application)
+      RETURN coalesce(s.hostname, s.name) AS server, d.name AS data, collect(DISTINCT cat.name) AS categories,
+             collect(DISTINCT a.name) AS affected_applications
+    parameters:
+      - name: server_id
+        type: string
+        description: Server id (physical or virtual)
+
+  - name: get_data_incident_history
+    description: Incidents and tickets that were about a data asset specifically, not just infrastructure
+    cypher: |
+      MATCH (d:Data)<-[:IMPACTS]-(i:Incident)
+      OPTIONAL MATCH (d)<-[:CONCERNS]-(t:Ticket)
+      RETURN d.name AS data, i.title AS incident, i.severity AS severity, collect(DISTINCT t.id) AS tickets
+
+  # --- K. IPAM v2 (VLAN / Subnet) --------------------------------------
+  - name: get_subnet_capacity
+    description: IP capacity used per subnet (assumes a /24 = 254 usable host addresses)
+    cypher: |
+      MATCH (s:Subnet)
+      OPTIONAL MATCH (s)<-[:IN_SUBNET]-(ip:IPAddress)
+      RETURN s.cidr AS subnet, s.name AS name, count(ip) AS ips_allocated,
+             254 - count(ip) AS approx_addresses_free
+      ORDER BY subnet
+
+  - name: get_vlan_for_ip
+    description: Which VLAN a given IP address belongs to
+    cypher: |
+      MATCH (ip:IPAddress {address: $ip_address})-[:IN_SUBNET]->(s:Subnet)-[:IN_VLAN]->(v:VLAN)
+      RETURN ip.address AS ip_address, s.cidr AS subnet, v.name AS vlan, v.vlanId AS vlan_id
+    parameters:
+      - name: ip_address
+        type: string
+        description: IP address, e.g. '10.10.1.101'
+
+  - name: get_host_ipam_chain
+    description: Full IPAM chain for a physical host - NIC to IP to Subnet to VLAN
+    cypher: |
+      MATCH (host:PhysicalServer {id: $server_id})-[:HAS_INTERFACE]->(nic:NetworkInterface)-[:HAS_IP]->(ip:IPAddress)
+      OPTIONAL MATCH (ip)-[:IN_SUBNET]->(s:Subnet)-[:IN_VLAN]->(v:VLAN)
+      RETURN host.hostname AS host, nic.name AS interface, ip.address AS ip_address, s.cidr AS subnet, v.name AS vlan
+    parameters:
+      - name: server_id
+        type: string
+        description: PhysicalServer id
+
+  # --- L. Multi-step change approvals ----------------------------------
+  - name: get_change_approval_status
+    description: Full multi-step approval chain (per-step status) for a change request
+    cypher: |
+      MATCH (c:ChangeRequest {id: $change_id})
+      OPTIONAL MATCH (c)-[:HAS_APPROVAL]->(a:Approval)
+      OPTIONAL MATCH (a)-[:DECIDED_BY]->(decider:Person)
+      RETURN c.title AS change, a.step AS step, a.status AS status, decider.name AS decided_by
+      ORDER BY step
+    parameters:
+      - name: change_id
+        type: string
+        description: Change request id
+
+  - name: list_changes_pending_approval
+    description: Change requests still blocked on a pending approval step, riskiest first
+    cypher: |
+      MATCH (c:ChangeRequest)-[:HAS_APPROVAL]->(a:Approval {status: 'pending'})
+      RETURN c.id AS change, c.title AS title, c.riskLevel AS risk, a.step AS pending_step
+      ORDER BY risk DESC
+
+  # --- M. Cost centers / budgets (chargeback / showback) ---------------
+  - name: get_cost_center_spend
+    description: Budget and number of charged applications per cost center
+    cypher: |
+      MATCH (cc:CostCenter)
+      OPTIONAL MATCH (cc)-[:HAS_BUDGET]->(b:Budget)
+      OPTIONAL MATCH (cc)<-[:CHARGED_TO]-(app:Application)
+      RETURN cc.name AS cost_center, b.amount AS budget, b.currency AS currency,
+             count(DISTINCT app) AS charged_applications
+      ORDER BY budget DESC
+
+  - name: get_application_cost_center
+    description: Which cost center (and budget) funds a given application
+    cypher: |
+      MATCH (a:Application {id: $application_id})-[:CHARGED_TO]->(cc:CostCenter)-[:HAS_BUDGET]->(b:Budget)
+      RETURN a.name AS application, cc.name AS cost_center, b.name AS budget, b.amount AS amount, b.currency AS currency
+    parameters:
+      - name: application_id
+        type: string
+        description: Application id
+
+  # --- N. Application version history (point-in-time snapshots) -------
+  - name: get_application_version_history
+    description: Full version timeline for an application
+    cypher: |
+      MATCH (a:Application {id: $application_id})-[:HAD_VERSION]->(av:ApplicationVersion)
+      RETURN a.name AS application, av.version AS version, av.validFrom AS valid_from,
+             av.validTo AS valid_to, av.changelog AS changelog
+      ORDER BY valid_from
+    parameters:
+      - name: application_id
+        type: string
+        description: Application id
+
+  - name: get_application_version_at_date
+    description: Which version of an application was live at a given point in time
+    cypher: |
+      MATCH (a:Application {id: $application_id})-[:HAD_VERSION]->(av:ApplicationVersion)
+      WHERE av.validFrom <= date($as_of_date) AND (av.validTo IS NULL OR av.validTo > date($as_of_date))
+      RETURN a.name AS application, av.version AS version_at_date
+    parameters:
+      - name: application_id
+        type: string
+        description: Application id
+      - name: as_of_date
+        type: string
+        description: Date to check, 'YYYY-MM-DD'
+
+  # --- O. Data flows (ETL / replication pipelines between Data assets) -
+  - name: list_data_flows
+    description: Every data flow with its source/target data assets and implementing application or container
+    cypher: |
+      MATCH (f:DataFlow)
+      OPTIONAL MATCH (f)-[:SOURCE_DATA]->(src:Data)
+      OPTIONAL MATCH (f)-[:TARGET_DATA]->(tgt:Data)
+      OPTIONAL MATCH (impl)-[:IMPLEMENTS]->(f) WHERE impl:Application OR impl:Container
+      RETURN f.name AS data_flow, f.type AS type, f.schedule AS schedule,
+             collect(DISTINCT src.name) AS sources, collect(DISTINCT tgt.name) AS targets,
+             collect(DISTINCT impl.name) AS implemented_by
+
+  - name: get_dataflow_implementor
+    description: Which application or container implements a given data flow
+    cypher: |
+      MATCH (impl)-[:IMPLEMENTS]->(f:DataFlow {id: $dataflow_id})
+      WHERE impl:Application OR impl:Container
+      RETURN f.name AS data_flow, labels(impl) AS implementor_type, impl.name AS implemented_by
+    parameters:
+      - name: dataflow_id
+        type: string
+        description: DataFlow id
+
+  - name: get_downstream_data_lineage
+    description: Downstream data lineage extended through pipelines - everything a data asset feeds into via a DataFlow
+    cypher: |
+      MATCH (d:Data {id: $data_id})<-[:SOURCE_DATA]-(f:DataFlow)-[:TARGET_DATA]->(downstream:Data)
+      RETURN d.name AS source_data, f.name AS via_flow, downstream.name AS downstream_data
+    parameters:
+      - name: data_id
+        type: string
+        description: Data asset id
+
+  # --- P. Supervision / probes ------------------------------------------
+  - name: list_probe_statuses
+    description: Every supervision probe, what it monitors, and its current status
+    cypher: |
+      MATCH (p:Probe)-[:MONITORS]->(target)
+      RETURN p.name AS probe, p.checkType AS check_type,
+             coalesce(p.command, p.process, toString(p.port)) AS check_target,
+             labels(target) AS target_labels, coalesce(target.hostname, target.name) AS monitors,
+             p.status AS status, p.severity AS alert_severity
+      ORDER BY p.status DESC, probe
+
   - name: get_active_probe_alerts
     description: Supervision probes not currently in an 'ok' or 'disabled' state
     cypher: |
@@ -1604,16 +2055,17 @@ agent_tools:
         type: integer
         default: 20
 
-  - name: get_cost_center_spend
-    description: Budget and number of charged applications per cost center
+  - name: list_unmonitored_resources
+    description: Virtual servers, containers, and applications with no supervision probe at all
     cypher: |
-      MATCH (cc:CostCenter)
-      OPTIONAL MATCH (cc)-[:HAS_BUDGET]->(b:Budget)
-      OPTIONAL MATCH (cc)<-[:CHARGED_TO]-(app:Application)
-      RETURN cc.name AS cost_center, b.amount AS budget, b.currency AS currency,
-             count(DISTINCT app) AS charged_applications
-      ORDER BY budget DESC
+      MATCH (target)
+      WHERE target:VirtualServer OR target:Container OR target:Application
+      OPTIONAL MATCH (target)<-[:MONITORS]-(p:Probe)
+      WITH target, count(p) AS probe_count
+      WHERE probe_count = 0
+      RETURN labels(target) AS target_labels, coalesce(target.hostname, target.name) AS unmonitored_resource
 
+  # --- R. Application capabilities & source traceability ---------------
   - name: get_application_capabilities
     description: Business functions of an application, what realizes them, and the source files behind each artifact
     cypher: |
@@ -1623,6 +2075,17 @@ agent_tools:
       RETURN fn.name AS function, fn.category AS category,
              collect(DISTINCT {type: labels(artifact)[0], name: artifact.name}) AS realizedBy,
              collect(DISTINCT sf.path) AS sourceFiles
+    parameters:
+      - name: application_id
+        type: string
+        description: Application id
+
+  - name: get_application_artifacts_by_type
+    description: Every software/dev-level artifact an application owns, grouped by type (menus, forms, reports, exports, endpoints, setting files, algorithms)
+    cypher: |
+      MATCH (a:Application {id: $application_id})-[r]->(artifact)
+      WHERE type(r) IN ['HAS_MENU','HAS_FORM','HAS_REPORT','HAS_EXPORT','HAS_ENDPOINT','HAS_SETTING_FILE','HAS_ALGORITHM']
+      RETURN labels(artifact) AS artifact_type, artifact.name AS artifact
     parameters:
       - name: application_id
         type: string
@@ -1643,6 +2106,25 @@ agent_tools:
         type: integer
         default: 20
 
+  - name: get_application_repositories
+    description: An application's source repositories and the files in each
+    cypher: |
+      MATCH (a:Application {id: $application_id})-[:SOURCE_REPOSITORY]->(r:Repository)
+      OPTIONAL MATCH (r)-[:CONTAINS_FILE]->(sf:SourceFile)
+      RETURN r.name AS repository, r.url AS url, collect(DISTINCT sf.path) AS files
+    parameters:
+      - name: application_id
+        type: string
+        description: Application id
+
+  # --- S. Master data / reference lists ---------------------------------
+  - name: list_master_data_types
+    description: Every master data type with its values, ordered for display
+    cypher: |
+      MATCH (t:MasterDataType)<-[:OF_TYPE]-(m:MasterData)
+      RETURN t.name AS type, t.code AS type_code, collect(m.name) AS values
+      ORDER BY type
+
   - name: get_master_data_values
     description: All values of a given master data type (reference/code list), in display order
     cypher: |
@@ -1653,6 +2135,24 @@ agent_tools:
       - name: type_code
         type: string
         description: MasterDataType code, e.g. 'COUNTRY' or 'PRIORITY'
+
+  - name: list_empty_master_data_types
+    description: Master data types with no values yet (empty reference lists)
+    cypher: |
+      MATCH (t:MasterDataType)
+      OPTIONAL MATCH (t)<-[:OF_TYPE]-(m:MasterData)
+      WITH t, count(m) AS value_count
+      WHERE value_count = 0
+      RETURN t.name AS empty_type
+
+  # --- T. Business domains (first-class categorization for Application) -
+  - name: list_business_domains_with_applications
+    description: Every business domain with the applications assigned to it
+    cypher: |
+      MATCH (b:BusinessDomain)
+      OPTIONAL MATCH (b)<-[:IN_BUSINESS_DOMAIN]-(a:Application)
+      RETURN b.name AS business_domain, collect(a.name) AS applications
+      ORDER BY business_domain
 
   - name: get_applications_by_business_domain
     description: Applications in a given business domain, with criticality
@@ -1665,15 +2165,12 @@ agent_tools:
         type: string
         description: Business domain name, e.g. 'E-commerce' or 'Platform'
 
-  - name: get_virtual_server_aliases
-    description: DNS aliases pointing at a given virtual server
+  - name: list_applications_without_business_domain
+    description: Applications with no first-class business domain assigned yet (still only carrying the legacy businessService property)
     cypher: |
-      MATCH (v:VirtualServer {id: $server_id})<-[:ALIAS_OF]-(al:Alias)
-      RETURN v.hostname AS server, al.hostname AS alias, al.recordType AS record_type, al.ttl AS ttl
-    parameters:
-      - name: server_id
-        type: string
-        description: VirtualServer id
+      MATCH (a:Application)
+      WHERE NOT (a)-[:IN_BUSINESS_DOMAIN]->(:BusinessDomain)
+      RETURN a.name AS application, a.businessService AS legacy_business_service_property
 
 system_prompt: |
   You are an AI CMDB assistant with access to a comprehensive knowledge
