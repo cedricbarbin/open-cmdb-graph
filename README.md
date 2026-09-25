@@ -13,7 +13,13 @@ cmdb/
 │   ├── 02_sample_data.cypher               ~125 nodes / ~205 relationships of realistic sample data
 │   └── 03_sample_queries.cypher            read/write query cookbook (also used as app presets)
 ├── app/                                    React + @neo4j-nvl/react + neo4j-driver
-└── ontology/                               create-context-graph ontology (optional, unrelated to the app - see ontology/README.md)
+├── ontology/                               create-context-graph ontology (optional, unrelated to the app - see ontology/README.md)
+└── tools/                                  importers that turn external inventories into Cypher for this model:
+    ├── ua2cypher/                          understand-anything code graphs (see tools/ua2cypher/README.md)
+    ├── rvtools2cypher/                     RVTools (VMware vSphere) exports (see tools/rvtools2cypher/README.md)
+    ├── efficientip2cypher/                 EfficientIP SOLIDserver IPAM exports (see tools/efficientip2cypher/README.md)
+    ├── proxmox2cypher/                     Proxmox VE API output (see tools/proxmox2cypher/README.md)
+    └── sample_data/                        your own exports for local testing, one directory per importer (git-ignored)
 ```
 
 ## 1. Data model
@@ -362,9 +368,10 @@ you're signed in (list/search/create/edit/export, the "line of business"
 view of the data), grouped by category same as the data model tables above,
 plus one more category at the very end, **Admin**, holding **Graph
 Explorer** (free-form querying/visualization), **Manage Users**, **Menu
-Settings**, and **Backup & Restore** — styled and grouped exactly like any
-other sidebar category, not called out as special. Manage Users and Backup
-& Restore are admin-only; Graph Explorer is superuser-and-admin; Menu
+Settings**, **Backup & Restore**, and **Import from tools** — styled and
+grouped exactly like any other sidebar category, not called out as
+special. Manage Users and Backup & Restore are admin-only; Graph Explorer
+is superuser-and-admin; Import from tools needs any writing profile; Menu
 Settings has no gate at all, since it's a display preference rather than a
 permission. Routing is
 client-side only (`HashRouter` — URLs look like `#/type/application`), so it
@@ -522,6 +529,41 @@ already has some of those edges creates duplicates rather than merging
 them. `app/src/lib/backup.js` holds the export/restore orchestration;
 `app/src/lib/csvImport.js` holds the row-level CSV → node/relationship
 logic shared with the single-type Import CSV button.
+
+### Import from tools
+
+Any writing profile (operator and up) — the in-app counterpart of the
+command-line importers in `tools/` (`rvtools2cypher`, `efficientip2cypher`,
+`proxmox2cypher`, `ua2cypher`): upload an RVTools `.xlsx` (or its
+`RVTools_tab*.csv` files), SOLIDserver network/address/VLAN exports,
+Proxmox `pvesh … --output-format json` files, or a project's
+`knowledge-graph.json`/`domain-graph.json`, and load it straight into
+Neo4j from the browser. The source is detected from the files (an
+explicit picker overrides it), the same options as the CLI flags are
+offered per source (column overrides, environment map, datacenter,
+tag prefix…), and **Preview** reads the files without writing anything
+and shows the node/relationship counts, warnings and detected columns.
+
+The mapping is the same code path as the CLI, ported to
+`app/src/lib/importers/` (same ids, same labels, same refresh-vs.-create
+split), so importing a file here or loading the CLI's `.cypher` with
+`cypher-shell` produces the same graph. Before writing, the same Replace
+existing/Ignore existing/Cancel prompt as Import CSV asks what to do with
+nodes the export *refreshes* (servers, subnets, addresses, clusters…)
+that already exist — Replace applies the imported properties
+(`SET n += …`), Ignore leaves the node untouched (`ON CREATE SET`). Nodes
+an importer only *creates if missing* (applications, environments,
+locations, business domains, VLANs) keep their current properties in both
+modes, exactly like the CLI. Two more checkboxes mirror CLI flags: **strict**
+(model labels only — no `Cluster`/`Datastore`/`IPSpace` enrichment
+nodes; forced on for the operator profile, because creating a new label
+needs the superuser role's `NAME MANAGEMENT` privilege) and **purge**
+(`--purge`: delete the inventory part of the previous import from the same
+source first, so entries that left the export disappear). Writes go
+through batched, parameterized `UNWIND … MERGE` statements
+(`mergeImportNodes`/`mergeImportRelationships`/`purgeImport` in
+`app/src/lib/neo4j.js`), with labels and relationship types passed through
+the same identifier allow-list as everywhere else.
 
 ## 5. Extending the model further
 

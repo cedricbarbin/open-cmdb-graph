@@ -9,7 +9,7 @@ function sidebarLinkClass({ isActive }) {
 }
 
 export default function Sidebar() {
-  const { canAccessGraphExplorer, canManageUsers, canAccessBackupRestore } = useConnection();
+  const { canWrite, canAccessGraphExplorer, canManageUsers, canAccessBackupRestore } = useConnection();
   const { hiddenTypes } = useMenuPrefs();
 
   return (
@@ -49,6 +49,11 @@ export default function Sidebar() {
         {canAccessBackupRestore && (
           <NavLink to="/backup-restore" className={sidebarLinkClass}>
             Backup &amp; Restore
+          </NavLink>
+        )}
+        {canWrite && (
+          <NavLink to="/import" className={sidebarLinkClass}>
+            Import from tools
           </NavLink>
         )}
       </div>

@@ -14,11 +14,12 @@ const EntityListScreen = lazy(() => import('./pages/EntityListScreen.jsx'));
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage.jsx'));
 const MenuSettingsPage = lazy(() => import('./pages/MenuSettingsPage.jsx'));
 const BackupRestorePage = lazy(() => import('./pages/BackupRestorePage.jsx'));
+const ImportPage = lazy(() => import('./pages/ImportPage.jsx'));
 
 export default function App() {
   const {
     connected, connecting, connectionError, profile,
-    canAccessGraphExplorer, canManageUsers, canAccessBackupRestore, connect, disconnect,
+    canWrite, canAccessGraphExplorer, canManageUsers, canAccessBackupRestore, connect, disconnect,
     passwordChangeRequired, pendingUsername, changePassword, cancelPasswordChange
   } = useConnection();
 
@@ -61,6 +62,10 @@ export default function App() {
                 <Route
                   path="/backup-restore"
                   element={canAccessBackupRestore ? <BackupRestorePage /> : <Navigate to={defaultPath} replace />}
+                />
+                <Route
+                  path="/import"
+                  element={canWrite ? <ImportPage /> : <Navigate to={defaultPath} replace />}
                 />
                 <Route path="*" element={<Navigate to={defaultPath} replace />} />
               </Routes>

@@ -4,7 +4,8 @@ import Modal from './Modal.jsx';
 /** Asks how to handle rows in a CSV/ZIP import whose `id` already matches
  * an existing node, before the import actually runs. Shared by
  * EntityListScreen's single-type "Import CSV" and BackupRestorePage's
- * "Restore ZIP" - both need the exact same choice. Rows whose `id` is new
+ * "Restore ZIP" and ImportPage's tool imports (where the key may be
+ * cidr/address/name instead of id) - all need the exact same choice. Rows whose `id` is new
  * are always created either way; this only changes what happens to rows
  * that collide with an existing node. */
 export default function ImportModeModal({ onChoose, onClose }) {

@@ -14,6 +14,8 @@ their relationship types 1:1, and adds a handful of clearly marked
 flow steps, code layers, tour steps). Python 3.9+, no dependency; `--load`
 needs `pip install neo4j`.
 
+The same importer is available in the app's **Import from tools** screen (`app/src/lib/importers/ua.js`): upload `knowledge-graph.json` and `domain-graph.json` there to load them without the CLI.
+
 ## Usage
 
 ```bash

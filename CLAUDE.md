@@ -15,6 +15,7 @@ Repo layout:
 ```
 cypher/   Cypher scripts: security setup, constraints/indexes, sample data, query cookbook
 app/      React + @neo4j-nvl/react + neo4j-driver SPA
+tools/    stdlib-only Python importers (ua2cypher, rvtools2cypher, efficientip2cypher, proxmox2cypher) that emit idempotent Cypher for this model; tools/sample_data/<importer>/ is git-ignored scratch space for real exports (never commit them)
 ```
 
 ## Commands
@@ -42,6 +43,24 @@ Sample data is idempotent (`MERGE` on `id`), except cookbook section Q
 duplicate nodes if re-run.
 
 ## Architecture
+
+**`tools/` importers share one contract** (`tools/ua2cypher/ua2cypher.py`,
+`tools/rvtools2cypher/rvtools2cypher.py`, `tools/efficientip2cypher/efficientip2cypher.py`,
+`tools/proxmox2cypher/proxmox2cypher.py`): Python 3.9+ with no third-party
+dependency for generation (`--load` needs `pip install neo4j`), deterministic
+ids so output is `MERGE`-safe, every generated node tagged with an `origin`
+property (`understand-anything` / `rvtools` / `efficientip` / `proxmox`) that `--purge` keys off, model
+labels reused 1:1 and any extra label marked as *enrichment* and dropped by
+`--strict`, reference nodes that may pre-exist in the CMDB (Application,
+BusinessDomain, Environment, Location) written with `ON CREATE SET` only so
+hand-maintained properties survive a re-import, nodes whose model constraint
+is on another property merged on that property (`Environment.name`,
+`BusinessDomain.name`, `Subnet.cidr`, `IPAddress.address`) so two importers
+meeting on the same address or subnet enrich one node instead of colliding,
+shared id conventions across importers (`vm-<name>`, `srv-phy-<host>`,
+`ip-<address>`, `vlan-<id>`, `loc-dc-<site>`, `app-<name>`, `env-*`), and
+`tools/ua2cypher/check_cypher.py` as the offline structural check. A new
+importer should follow the same shape rather than invent its own flags.
 
 **No backend.** The app talks Bolt-over-WebSocket directly from the browser
 to Neo4j via `neo4j-driver`. Database credentials therefore live in the
@@ -133,6 +152,29 @@ match, and passes `readOnly={!canWrite}` — so a read-only profile can still
 open and inspect a node's full detail/relationships
 through the familiar edit form, just without any way to change it.
 
+**`app/src/lib/importers/` is the browser port of the `tools/` CLIs**, driving
+`ImportPage.jsx` (`#/import`, Admin sidebar group, gated on `canWrite`).
+`common.js` holds the shared pieces (slug/clean/date helpers, an
+ipaddress-module subset on BigInt, delimiter-sniffing CSV parser, the
+`GraphBuilder` whose `toGraph()` is plain data: nodes `{label, mergeKey,
+mode: 'refresh'|'create', props, alwaysProps?}`, rels, `purgeLabels`,
+summary); `xlsx.js` reads RVTools workbooks with `jszip` + `DOMParser`
+(loaded on demand, so the page chunk stays small); `rvtools.js`,
+`efficientip.js`, `proxmox.js`, `ua.js` are line-for-line ports of the
+corresponding Python builders and expose an `*_OPTIONS` schema the page
+renders generically; `index.js` is the registry (`IMPORTERS`), the
+`detectImporter` content sniffing, and `loadImportGraph`, which writes a
+graph through the batched helpers appended to `neo4j.js`
+(`findExistingKeys`, `mergeImportNodes`, `mergeImportRelationships`,
+`purgeImport`, `linkImportedIpsToServers`; values converted by
+`toImportValue` so Dates become `DateTime` and integral numbers `Integer`).
+`onExisting` from the shared `ImportModeModal` only affects `mode:
+'refresh'` nodes (Replace = `SET n +=`, Ignore = `ON CREATE SET`);
+`mode: 'create'` nodes are always `ON CREATE SET`, same as the CLIs. **Keep
+the Python tool and its JS port in step**: a mapping change belongs in
+both, and the Node harness approach (mock `File` objects + `@xmldom/xmldom`
+as `DOMParser`) is the quickest way to diff their summaries.
+
 **CSV import/export is layered so single-type and bulk paths share code**:
 `app/src/lib/formUtils.js` exports `buildProperties` (form-value → property
 coercion: number/date/datetime), used by both `EntityFormModal.jsx`'s
@@ -182,7 +224,8 @@ server-side rewrite rules. `App.jsx` redirects `/graph`, `/users`, and
 reach them (`/graph` requires `superuser` or `admin`; `/users` and
 `/backup-restore` require `admin`), so gating isn't just a hidden
 `Sidebar.jsx` link; `/menu-settings` is the one unguarded route — every
-profile can reach it, since it's a display preference, not a permission.
+profile can reach it, since it's a display preference, not a permission;
+`/import` (the tool importers) requires `canWrite`.
 Every page in `App.jsx`'s route table is `React.lazy()`-imported (wrapped
 in one `<Suspense>` around `<Routes>`), not statically imported — this is
 what keeps the entry chunk small (~40kB vs. a single ~2.7MB bundle

@@ -440,3 +440,122 @@ export async function setUserPassword({ username, password }) {
 export async function deleteUser({ username }) {
   await runQuery('DROP USER $username', { username }, 'system');
 }
+
+// ---------------------------------------------------------------------
+// Tool importers (lib/importers/*, pages/ImportPage.jsx): batched, parameterized
+// counterparts of the UNWIND statements the tools/*2cypher CLIs generate.
+// Labels and relationship types still can't be parameters, so they go
+// through assertValidIdentifier like everywhere else; every value is
+// converted with toImportValue (JS Date -> DateTime, integral numbers ->
+// Integer, arrays/objects recursively) so what lands in the graph matches
+// what cypher-shell would have written from the CLI output.
+// ---------------------------------------------------------------------
+function toImportValue(v) {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) {
+    return new neo4j.types.DateTime(
+      v.getUTCFullYear(), v.getUTCMonth() + 1, v.getUTCDate(), v.getUTCHours(), v.getUTCMinutes(), v.getUTCSeconds(), 0, 0
+    );
+  }
+  if (typeof v === 'number') return Number.isInteger(v) && Math.abs(v) < 2 ** 53 ? neo4j.int(v) : v;
+  if (typeof v === 'bigint') return neo4j.int(v.toString());
+  if (Array.isArray(v)) return v.map(toImportValue);
+  if (typeof v === 'object') {
+    const out = {};
+    for (const [k, x] of Object.entries(v)) out[k] = toImportValue(x);
+    return out;
+  }
+  return v;
+}
+
+/** Values (of `key`) that already exist on nodes of a label - the merge-key
+ * generalisation of findExistingIds (importers merge Subnet on cidr,
+ * IPAddress on address, Environment on name). */
+export async function findExistingKeys({ label, key, values }, database) {
+  if (values.length === 0) return [];
+  const safeLabel = backtick(assertValidIdentifier(label, 'label'));
+  const safeKey = backtick(assertValidIdentifier(key, 'property'));
+  const cypher = `MATCH (n:${safeLabel}) WHERE n.${safeKey} IN $values RETURN n.${safeKey} AS value`;
+  const records = await runQuery(cypher, { values }, database);
+  return records.map((r) => r.get('value'));
+}
+
+/** UNWIND-merges a batch of nodes: rows are { p: properties (incl. the merge
+ * key), a: properties to set on every run or null }. onCreateOnly keeps an
+ * existing node's `p` properties (ON CREATE SET); otherwise they're refreshed
+ * (SET n += p). */
+export async function mergeImportNodes({ labels, mergeKey, rows, onCreateOnly }, database) {
+  const safeLabels = labels.map((l) => backtick(assertValidIdentifier(l, 'label'))).join(':');
+  const safeKey = backtick(assertValidIdentifier(mergeKey, 'property'));
+  const cypher = `
+    UNWIND $rows AS row
+    MERGE (n:${safeLabels} {${safeKey}: row.p.${safeKey}})
+    ${onCreateOnly ? 'ON CREATE SET n += row.p' : 'SET n += row.p'}
+    SET n += coalesce(row.a, {})
+    RETURN count(n) AS n`;
+  const records = await runQuery(cypher, { rows: toImportValue(rows) }, database);
+  return records[0]?.get('n')?.toNumber?.() ?? rows.length;
+}
+
+/** UNWIND-merges a batch of relationships between nodes matched by business id. */
+export async function mergeImportRelationships({ fromLabel, toLabel, type, rows, origin }, database) {
+  const safeFrom = backtick(assertValidIdentifier(fromLabel, 'label'));
+  const safeTo = backtick(assertValidIdentifier(toLabel, 'label'));
+  const safeType = backtick(assertValidIdentifier(type, 'relationship type'));
+  const cypher = `
+    UNWIND $rows AS row
+    MATCH (s:${safeFrom} {id: row.s}), (t:${safeTo} {id: row.t})
+    MERGE (s)-[r:${safeType}]->(t)
+    SET r += coalesce(row.p, {}), r.origin = $origin
+    RETURN count(r) AS n`;
+  const records = await runQuery(cypher, { rows: toImportValue(rows), origin }, database);
+  return records[0]?.get('n')?.toNumber?.() ?? 0;
+}
+
+/** Removes a previous import from the same source: nodes carrying `origin`
+ * (restricted to `labels` when given - the inventory labels a tool's --purge
+ * covers - and to `where` property equalities, e.g. { appId }), then every
+ * relationship carrying that origin. Returns the counts. */
+export async function purgeImport({ origin, labels = null, where = null }, database) {
+  const conds = ['n.origin = $origin'];
+  const params = { origin };
+  if (labels && labels.length > 0) {
+    conds.push('(' + labels.map((l) => `n:${backtick(assertValidIdentifier(l, 'label'))}`).join(' OR ') + ')');
+  }
+  for (const [k, v] of Object.entries(where || {})) {
+    const safeKey = backtick(assertValidIdentifier(k, 'property'));
+    conds.push(`n.${safeKey} = $where_${k}`);
+    params[`where_${k}`] = v;
+  }
+  const nodeRecords = await runQuery(
+    `MATCH (n) WHERE ${conds.join(' AND ')} WITH collect(n) AS ns FOREACH (x IN ns | DETACH DELETE x) RETURN size(ns) AS n`,
+    params, database
+  );
+  const relRecords = await runQuery(
+    `MATCH ()-[r]->() WHERE r.origin = $origin WITH collect(r) AS rs FOREACH (x IN rs | DELETE x) RETURN size(rs) AS n`,
+    { origin }, database
+  );
+  return { nodes: nodeRecords[0]?.get('n')?.toNumber?.() ?? 0, relationships: relRecords[0]?.get('n')?.toNumber?.() ?? 0 };
+}
+
+/** efficientip "--link-servers": attaches imported IPAddress nodes to existing
+ * Server nodes matched by ipAddress or short hostname, through a
+ * NetworkInterface (created if missing). Servers are matched, never created.
+ * rows: { ip, address, names, nic, mac }. */
+export async function linkImportedIpsToServers({ rows, origin, sourceFile }, database) {
+  const cypher = `
+    UNWIND $rows AS row
+    MATCH (ip:IPAddress {id: row.ip})
+    MATCH (s:Server)
+    WHERE s.ipAddress = row.address OR toLower(split(coalesce(s.hostname, ''), '.')[0]) IN row.names
+    MERGE (nic:NetworkInterface {id: 'nic-' + s.id + '-' + row.nic})
+    ON CREATE SET nic.name = row.nic, nic.type = 'data', nic.origin = $origin, nic.importedAt = $importedAt, nic.sourceFile = $sourceFile
+    SET nic.mac = coalesce(row.mac, nic.mac)
+    MERGE (s)-[r1:HAS_INTERFACE]->(nic) SET r1.origin = $origin
+    MERGE (nic)-[r2:HAS_IP]->(ip) SET r2.origin = $origin
+    RETURN count(DISTINCT ip) AS n`;
+  const records = await runQuery(
+    cypher, { rows: toImportValue(rows), origin, sourceFile, importedAt: toImportValue(new Date()) }, database
+  );
+  return records[0]?.get('n')?.toNumber?.() ?? 0;
+}

@@ -74,3 +74,6 @@ sketch
 
 # Claude Code hook output (generated per-session, not source)
 prompt_trace.csv
+
+# Real inventory exports used to test the tools/ importers locally - never commit
+tools/sample_data/
