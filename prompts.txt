@@ -1,0 +1,42 @@
+Version 0.8
+
+- I need to describe business capabilities of the 3Application" object to store information about : functions, menu, forms, reports, exports, web service endpoints, setting files and algorithm. Please evolve the model and the application to cover that. The algorithm part would propably be inserted with AI by parsing source code. A refernce to repository and interresting source code files can be interresting (not only for algorithm).
+- Update the ontology
+- Add nodes "Master Data" and "Master Data Type" in "IT MASTER DATA" Category then update the app, the cypher and the ontology
+- Move "Master Data" node to "APPLICATION CAPABILITIES" category
+- Move Repositories and "Source Files" to "IT MASTER DATA"
+- Reorder "APPLICATION CAPABILITIES" as ...
+- Add an object "Business domain" in "IT MASTER DATA" and update app, cypher and ontoloy. This new object is a categorization for Application
+- Add Aliases object to represent DNS Aliases for virtual servers and update app, cypher and ontology in "NETWORK & ASSETS" category. Move the category "network & assets" before "application & data"
+- In the environment list of node types change ['prod', 'staging', 'dev'] to ['production', 'pre-production', 'qualification', 'development', 'other'] and update all references in the app, the cypher and ontology
+- Change "NETWORK & ASSET" element order to : Subnets, VLANS, Network Interfaces, IP Addresses, Aliases
+- Change the import behaviour in all screens : add a question to the user to decide if the existing nodes should be replaced or ignored
+- After import change the message "Imported x of y rows, replaced z." to "Inserted x of y rows, replaced z."
+
+
+add a relationship IMPLEMENTS from Container to DataFlow
+Update the ontology and make sure it represents at least all sample queries in agent_tools caterory
+
+*
+There is missing relationships in edit screen, for example SOURCE_DATA, TARGET_DATA or CONSUMES_DATA, please check all relationships and update GUI
+
+Set id on relationships to be able to update them and avoir creating doubles
+
+Add a button to upload relationship.csv, when uploading relationships (CSV or ZIP) propose to delete existing ones (MATCH ()-[r]->() DELETE r)
+
+In the import process, in the csv if all columns are empty (except the id) please delete the node and all relationships concerned
+
+In ontology/cmdb.yaml add a capability to generate an architecture.md file which reprensents :
+   - The business view : business domain, application, cost center, team (and relationship between them)
+   - The application view : Applicaition, application capabilities, data flow, data, data category (and relationship between them)
+   - The infrastructure view : Servers, Containers, IP address, VLAN, Subnet, Datacenter, Cloud region, Environment, SLA (and relationship between them)
+The document will present description, data tables and schemas (schemas can be splitted to be readable)
+
+
+--
+
+Based on data/cmdb/cmdb.yaml and CSV files in data/cmdb/data, create an architecture.md file which reprensents :
+   - The business view : business domain, application, cost center, team (and relationship between them)
+   - The application view : Applicaition, application capabilities, data flow, data, data category (and relationship between them)
+   - The infrastructure view : Servers, Containers, IP address, VLAN, Subnet, Datacenter, Cloud region, Environment, SLA (and relationship between them)
+The document will present description, data tables and schemas (schemas can be splitted to be readable)
