@@ -24,8 +24,8 @@ python tools/rvtools2cypher/rvtools2cypher.py RVTools_export.xlsx -o vsphere.cyp
 # same from the per-tab csv files RVTools writes with "Export all to csv"
 python tools/rvtools2cypher/rvtools2cypher.py ./rvtools_csv_dir -o vsphere.cypher --schema --purge
 
-# the sample in this repository (a single customised vInfo sheet with vSphere tags)
-python tools/rvtools2cypher/rvtools2cypher.py tools/sample_data/rvtools/RVtools2024.xlsx -o rvtools.cypher --schema --purge
+# an export kept locally (tools/sample_data/ is git-ignored: keep your own exports there)
+python tools/rvtools2cypher/rvtools2cypher.py tools/sample_data/rvtools/RVTools_export.xlsx -o rvtools.cypher --schema --purge
 
 # generate and load in one go
 python tools/rvtools2cypher/rvtools2cypher.py RVTools_export.xlsx --schema --purge --load \

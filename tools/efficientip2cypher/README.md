@@ -18,8 +18,8 @@ The same importer is available in the app's **Import from tools** screen (`app/s
 ## Usage
 
 ```bash
-# the sample in this repository (a network export)
-python tools/efficientip2cypher/efficientip2cypher.py tools/sample_data/efficientip/sample.csv -o ipam.cypher --schema --purge
+# a network export (tools/sample_data/ is git-ignored: keep your own exports there)
+python tools/efficientip2cypher/efficientip2cypher.py tools/sample_data/efficientip/networks.csv -o ipam.cypher --schema --purge
 
 # networks + addresses + VLANs from a directory of exports, one space only, linked to existing servers
 python tools/efficientip2cypher/efficientip2cypher.py ./solidserver_exports --space 'headquarter C' --link-servers -o ipam.cypher

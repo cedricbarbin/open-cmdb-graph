@@ -24,8 +24,8 @@ pvesh get /nodes/pve1/qemu/100/config --output-format json > config-100.json   #
 pvesh get /nodes/pve1/lxc/200/config  --output-format json > config-200.json
 pvesh get /pools/webshop     --output-format json > pool-webshop.json  # optional: pool members
 
-# the sample in this repository (one guest from /cluster/resources)
-python tools/proxmox2cypher/proxmox2cypher.py tools/sample_data/proxmox/sample.json -o pve.cypher --schema --purge
+# a /cluster/resources dump (tools/sample_data/ is git-ignored: keep your own exports there)
+python tools/proxmox2cypher/proxmox2cypher.py tools/sample_data/proxmox/resources.json -o pve.cypher --schema --purge
 
 # a directory with everything above
 python tools/proxmox2cypher/proxmox2cypher.py ./pve_dump --datacenter 'Paris DC1' --pool-as-application -o pve.cypher --schema --purge
